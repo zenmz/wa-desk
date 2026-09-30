@@ -4,6 +4,15 @@ Client WhatsApp Desktop ringan untuk macOS 14+. Satu `WKWebView` (WebKit sistem)
 per akun di atas web.whatsapp.com, tanpa Electron, tanpa dependency.
 Notifikasi native, badge Dock, download ke ~/Downloads, call, multi-akun sebagai tab.
 
+## Install (Homebrew)
+
+    brew install zenmz/tap/wa
+    ln -sfn "$(brew --prefix)/opt/wa/WA.app" /Applications/WA.app
+
+Formula build dari source saat install (~10 detik, butuh Command Line Tools),
+jadi tidak ada masalah Gatekeeper. Update: `brew upgrade wa`.
+Versi terbaru dari `main`: `brew install --HEAD zenmz/tap/wa`.
+
 ## Build
 
 Butuh Command Line Tools (`xcode-select --install`). Tidak butuh Xcode.app.
