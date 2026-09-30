@@ -20,12 +20,14 @@ func badgeLabel(total: Int) -> String? { total > 0 ? String(total) : nil }
 
 /// Host selain web.whatsapp.com dibuka di browser default. Tanpa host (about:blank) = internal.
 func isExternal(_ url: URL) -> Bool {
-    guard let host = url.host else { return false }
+    guard let host = url.host?.lowercased() else { return false }
     return host != "web.whatsapp.com"
 }
 
-/// Nama file unik di dir: "a.jpg" → "a (1).jpg" → "a (2).jpg" … supaya download tidak menimpa.
+/// Nama file unik di dir: "a.jpg" → "a (1).jpg" → "a (2).jpg" … supaya download tidak menimpa. Nama disanitasi ke lastPathComponent (kosong → "download").
 func uniqueURL(in dir: URL, name: String, exists: (URL) -> Bool) -> URL {
+    let safeName = (name as NSString).lastPathComponent
+    let name = safeName.isEmpty ? "download" : safeName
     let base = (name as NSString).deletingPathExtension
     let ext = (name as NSString).pathExtension
     var candidate = dir.appendingPathComponent(name)
@@ -67,6 +69,10 @@ func selftest() -> Int32 {
     check(uniqueURL(in: dir, name: "b.jpg", exists: exists).lastPathComponent == "b.jpg", "uniqueURL free")
     check(uniqueURL(in: dir, name: "a.jpg", exists: exists).lastPathComponent == "a (2).jpg", "uniqueURL suffix")
     check(uniqueURL(in: dir, name: "noext", exists: exists).lastPathComponent == "noext (1)", "uniqueURL no ext")
+    check(isExternal(URL(string: "https://Web.WhatsApp.com/")!) == false, "isExternal case-insensitive host")
+    check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).lastPathComponent == "evil.jpg", "uniqueURL strips path")
+    check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).deletingLastPathComponent().path == dir.path, "uniqueURL stays in dir")
+    check(uniqueURL(in: dir, name: "", exists: exists).lastPathComponent == "download", "uniqueURL empty name")
 
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
