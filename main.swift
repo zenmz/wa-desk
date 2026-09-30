@@ -4,6 +4,8 @@ import UserNotifications
 
 // MARK: - Helpers murni (dites oleh --selftest)
 
+let waHome = URL(string: "https://web.whatsapp.com/")!
+
 /// "(3) WhatsApp" -> 3, "WhatsApp" -> 0. WhatsApp Web menaruh jumlah unread di judul halaman.
 func unreadCount(_ title: String) -> Int {
     guard title.hasPrefix("("), let close = title.firstIndex(of: ")") else { return 0 }
@@ -18,16 +20,18 @@ func validAccountIDs(_ raw: [String]) -> [String] {
 /// Badge Dock: nil saat 0 supaya badge hilang, bukan menampilkan "0".
 func badgeLabel(total: Int) -> String? { total > 0 ? String(total) : nil }
 
-/// Host selain web.whatsapp.com dibuka di browser default. Tanpa host (about:blank) = internal.
+/// Hanya http(s) ke host selain web.whatsapp.com yang dibuka di browser default.
+/// Skema lain (file, ssh, about:blank) dan URL tanpa host bukan external.
 func isExternal(_ url: URL) -> Bool {
-    guard let host = url.host?.lowercased() else { return false }
+    guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https",
+          let host = url.host?.lowercased() else { return false }
     return host != "web.whatsapp.com"
 }
 
 /// Nama file unik di dir: "a.jpg" → "a (1).jpg" → "a (2).jpg" … supaya download tidak menimpa. Nama disanitasi ke lastPathComponent (kosong → "download").
 func uniqueURL(in dir: URL, name: String, exists: (URL) -> Bool) -> URL {
     let safeName = (name as NSString).lastPathComponent
-    let name = safeName.isEmpty ? "download" : safeName
+    let name = ["", ".", "..", "/"].contains(safeName) ? "download" : safeName
     let base = (name as NSString).deletingPathExtension
     let ext = (name as NSString).pathExtension
     var candidate = dir.appendingPathComponent(name)
@@ -45,26 +49,34 @@ func shouldNotify(appActive: Bool, windowKey: Bool) -> Bool { !(appActive && win
 /// WKWebView tidak punya window.Notification. Shim ini meneruskan ke native lewat message handler "notify".
 let notificationShim = """
 (() => {
-  let seq = 0;
+  let seq = Date.now();
   const live = {};
-  class Notification {
+  class Notification extends EventTarget {
     static get permission() { return "granted"; }
+    static get maxActions() { return 0; }
     static requestPermission(cb) { if (cb) cb("granted"); return Promise.resolve("granted"); }
     constructor(title, opts = {}) {
-      this.title = title; this.body = opts.body || ""; this.tag = opts.tag || "";
+      super();
+      Object.assign(this, { body: "", tag: "", icon: "", data: null, silent: false }, opts);
+      this.title = String(title);
       this.onclick = null; this.onclose = null; this.onshow = null; this.onerror = null;
       this._id = String(++seq);
       live[this._id] = this;
-      window.webkit.messageHandlers.notify.postMessage({
-        id: this._id, title: String(title), body: String(this.body), tag: String(this.tag)
-      });
+      try {
+        window.webkit.messageHandlers.notify.postMessage({
+          id: this._id, title: this.title,
+          body: this.body == null ? "" : String(this.body),
+          tag: this.tag == null ? "" : String(this.tag)
+        });
+      } catch (e) {}
     }
-    close() { delete live[this._id]; if (this.onclose) this.onclose(); }
-    addEventListener(type, fn) { if (type === "click") this.onclick = fn; }
-    removeEventListener() {}
+    close() { delete live[this._id]; this.dispatchEvent(new Event("close")); if (this.onclose) this.onclose(); }
   }
   window.Notification = Notification;
-  window.__waNotifClick = (id) => { const n = live[id]; if (n && n.onclick) n.onclick(new Event("click")); };
+  window.__waNotifClick = (id) => {
+    const n = live[id]; if (!n) return;
+    const ev = new Event("click"); n.dispatchEvent(ev); if (n.onclick) n.onclick(ev);
+  };
 })();
 """
 
@@ -102,6 +114,10 @@ func selftest() -> Int32 {
     check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).lastPathComponent == "evil.jpg", "uniqueURL strips path")
     check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).deletingLastPathComponent().path == dir.path, "uniqueURL stays in dir")
     check(uniqueURL(in: dir, name: "", exists: exists).lastPathComponent == "download", "uniqueURL empty name")
+    check(isExternal(URL(string: "file://localhost/Applications/Calculator.app")!) == false, "isExternal file scheme")
+    check(isExternal(URL(string: "HTTPS://EXAMPLE.COM/")!) == true, "isExternal uppercase scheme")
+    check(uniqueURL(in: dir, name: "..", exists: exists).lastPathComponent == "download", "uniqueURL dotdot")
+    check(uniqueURL(in: dir, name: "/", exists: exists).lastPathComponent == "download", "uniqueURL slash")
     check(shouldNotify(appActive: true, windowKey: true) == false, "shouldNotify ditekan saat dilihat")
     check(shouldNotify(appActive: true, windowKey: false) == true, "shouldNotify tab lain")
     check(shouldNotify(appActive: false, windowKey: true) == true, "shouldNotify app background")
@@ -202,10 +218,12 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
             self.unread = unreadCount(title)
             (NSApp.delegate as? AppDelegate)?.refreshBadge()
         }
-        webView.load(URLRequest(url: URL(string: "https://web.whatsapp.com/")!))
+        webView.load(URLRequest(url: waHome))
     }
 
     required init?(coder: NSCoder) { fatalError("tidak dipakai") }
+
+    deinit { titleObservation?.invalidate() }
 
     /// Tutup window = sembunyikan. Pesan tetap masuk. Keluar hanya lewat Cmd+Q.
     func windowShouldClose(_ sender: NSWindow) -> Bool {
@@ -221,6 +239,10 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if action.shouldPerformDownload { return decisionHandler(.download) }
+        if let url = action.request.url, let scheme = url.scheme?.lowercased(), scheme == "mailto" || scheme == "tel" {
+            NSWorkspace.shared.open(url)
+            return decisionHandler(.cancel)
+        }
         if action.navigationType == .linkActivated, let url = action.request.url, isExternal(url) {
             NSWorkspace.shared.open(url)
             return decisionHandler(.cancel)
@@ -230,7 +252,7 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
 
     func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
                  decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
-        decisionHandler(response.canShowMIMEType ? .allow : .download)
+        decisionHandler(response.canShowMIMEType ? .allow : (response.isForMainFrame ? .download : .cancel))
     }
 
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
@@ -253,11 +275,19 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
         FileHandle.standardError.write(Data("download gagal: \(error.localizedDescription)\n".utf8))
     }
 
-    /// target=_blank / window.open → browser default. Hanya skema http(s).
+    /// Proses WebContent mati (memory pressure, crash) → halaman kosong diam-diam. Muat ulang.
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        webView.load(URLRequest(url: waHome))
+    }
+
+    /// target=_blank / window.open: luar → browser default; web.whatsapp.com sendiri → muat di tab ini.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let url = action.request.url, url.scheme?.hasPrefix("http") == true {
+        guard let url = action.request.url else { return nil }
+        if isExternal(url) {
             NSWorkspace.shared.open(url)
+        } else if url.host?.lowercased() == "web.whatsapp.com" {
+            webView.load(action.request)
         }
         return nil
     }
@@ -285,7 +315,9 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
 
 extension AccountWindow: WKScriptMessageHandler {
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard let body = message.body as? [String: Any],
+        guard message.frameInfo.isMainFrame,
+              message.frameInfo.securityOrigin.host == "web.whatsapp.com",
+              let body = message.body as? [String: Any],
               let nid = body["id"] as? String, Int(nid) != nil else { return }
         guard shouldNotify(appActive: NSApp.isActive, windowKey: window?.isKeyWindow ?? false) else { return }
 
@@ -313,7 +345,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         Accounts.pendingRemoval().forEach(purgeDataStore)
         for id in Accounts.all() { open(id: id) }
-        NSApp.activate(ignoringOtherApps: true)
+        NSApp.activate()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
@@ -337,7 +369,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Tampilkan window akun. Kalau ada window akun lain yang terlihat, gabung sebagai tab.
     func present(_ account: AccountWindow) {
         guard let win = account.window else { return }
-        if !win.isVisible,
+        if !win.isVisible, win.tabGroup == nil,
            let anchor = accounts.compactMap(\.window).first(where: { $0.isVisible && $0 !== win }) {
             anchor.addTabbedWindow(win, ordered: .above)
         }
@@ -381,7 +413,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let info = response.notification.request.content.userInfo
         if let accountID = info["account"] as? String,
            let account = accounts.first(where: { $0.id == accountID }) {
-            NSApp.activate(ignoringOtherApps: true)
+            NSApp.activate()
             present(account)
             if let nid = info["nid"] as? String, Int(nid) != nil {
                 account.webView.evaluateJavaScript("window.__waNotifClick('\(nid)')")
@@ -392,9 +424,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     // MARK: menu actions
 
-    @objc func reload() { current?.webView.reload() }
-    @objc func zoomIn() { current?.webView.pageZoom += 0.1 }
-    @objc func zoomOut() { current?.webView.pageZoom -= 0.1 }
+    /// Reload biasa hanya kalau halaman WhatsApp sudah termuat; kalau kosong (launch offline) atau nyasar ke host lain, muat ulang dari awal.
+    @objc func reload() {
+        guard let wv = current?.webView else { return }
+        if let url = wv.url, !isExternal(url) { wv.reload() } else { wv.load(URLRequest(url: waHome)) }
+    }
+    @objc func zoomIn() { if let wv = current?.webView { wv.pageZoom = min(3, wv.pageZoom + 0.1) } }
+    @objc func zoomOut() { if let wv = current?.webView { wv.pageZoom = max(0.5, wv.pageZoom - 0.1) } }
     @objc func zoomReset() { current?.webView.pageZoom = 1 }
 
     @objc func newAccount() { open(id: Accounts.add()) }
@@ -403,13 +439,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func newWindowForTab(_ sender: Any?) { newAccount() }
 
     @objc func removeAccount() {
-        guard let account = current, let win = account.window else { return }
+        // Hanya akun yang windownya key; jangan tebak lewat fallback `current` saat semua tab disembunyikan.
+        guard let account = accounts.first(where: { $0.window?.isKeyWindow == true }), let win = account.window else {
+            NSSound.beep()
+            return
+        }
         let alert = NSAlert()
         alert.messageText = "Hapus akun ini dari WA?"
         alert.informativeText = "Sesi login dan cache akun ini di Mac ikut dihapus. Chat di HP tidak terpengaruh."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Hapus")
         alert.addButton(withTitle: "Batal")
+        alert.buttons[0].hasDestructiveAction = true
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         let id = account.id
@@ -417,6 +458,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
         win.contentView = nil
         win.close()
+        NSWindow.removeFrame(usingName: "win-\(id)")
         accounts.removeAll { $0 === account }
         Accounts.remove(id)
         Accounts.markPendingRemoval(id)
