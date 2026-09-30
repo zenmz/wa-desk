@@ -1,4 +1,4 @@
-# WA
+# wa-desk
 
 Client WhatsApp Desktop ringan untuk macOS 14+. Satu `WKWebView` (WebKit sistem)
 per akun di atas web.whatsapp.com, tanpa Electron, tanpa dependency.
@@ -6,21 +6,22 @@ Notifikasi native, badge Dock, download ke ~/Downloads, call, multi-akun sebagai
 
 ## Install (Homebrew)
 
-    brew install zenmz/tap/wa
-    ln -sfn "$(brew --prefix)/opt/wa/WA.app" /Applications/WA.app
+    brew install zenmz/tap/wa-desk
+    ln -sfn "$(brew --prefix)/opt/wa-desk/wa-desk.app" /Applications/wa-desk.app
 
 Formula build dari source saat install (~10 detik, butuh Command Line Tools),
-jadi tidak ada masalah Gatekeeper. Update: `brew upgrade wa`.
-Versi terbaru dari `main`: `brew install --HEAD zenmz/tap/wa`.
+jadi tidak ada masalah Gatekeeper. Update: `brew upgrade wa-desk`.
+Versi terbaru dari `main`: `brew install --HEAD zenmz/tap/wa-desk`.
 
 ## Build
 
 Butuh Command Line Tools (`xcode-select --install`). Tidak butuh Xcode.app.
 
-    ./build.sh && open WA.app
+    ./build.sh && open wa-desk.app
 
-`build.sh` mengompilasi `main.swift`, membungkus `WA.app`, codesign ad-hoc,
-lalu menjalankan `WA --selftest` (fungsi murni: parsing badge, filter akun,
+`build.sh` mengompilasi `main.swift`, menggambar icon dari `icon/make-icon.swift`
+(CoreGraphics → `sips` → `iconutil`), membungkus `wa-desk.app`, codesign ad-hoc,
+lalu menjalankan `wa-desk --selftest` (fungsi murni: parsing badge, filter akun,
 nama file download, aturan link luar, aturan notifikasi).
 
 ## Pakai
@@ -64,9 +65,9 @@ Jalankan setelah login; centang yang lulus.
 
 ## Ukuran
 
-Angka WA diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah login.
+Angka wa-desk diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah login.
 
 | App | RAM | Storage |
 |---|---|---|
-| WA (halaman QR, 1 akun) | 55.5 MB | app 212K, data 41M |
+| wa-desk (halaman QR, 1 akun) | 55.5 MB | app 1.1M (icon 880K), data 41M |
 | WhatsApp resmi (sisa container) | belum diukur (app tidak terpasang) | 161M + 409M (Containers + Group Containers) |

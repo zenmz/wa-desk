@@ -486,11 +486,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             main.addItem(holder)
             return m
         }
-        _ = menu("WA", [
-            item("About WA", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+        _ = menu("wa-desk", [
+            item("About wa-desk", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
             .separator(),
-            item("Hide WA", #selector(NSApplication.hide(_:)), "h"),
-            item("Quit WA", #selector(NSApplication.terminate(_:)), "q"),
+            item("Hide wa-desk", #selector(NSApplication.hide(_:)), "h"),
+            item("Quit wa-desk", #selector(NSApplication.terminate(_:)), "q"),
         ])
         _ = menu("File", [
             item("Akun Baru", #selector(newAccount), "n"),
