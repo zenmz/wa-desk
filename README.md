@@ -16,7 +16,7 @@ nama file download, aturan link luar, aturan notifikasi).
 
 ## Pakai
 
-- Cmd+N: akun baru (tab). Cmd+Shift+[ / ]: pindah akun.
+- Cmd+N: akun baru (tab). Ctrl+Tab / Ctrl+Shift+Tab: pindah akun (item Show Next/Previous Tab di menu Window ditambahkan otomatis oleh macOS).
 - File → Hapus Akun Ini…: hapus sesi + cache akun yang sedang dilihat.
 - Cmd+W menyembunyikan window; pesan tetap masuk. Keluar dengan Cmd+Q.
 - Klik ikon Dock menampilkan lagi window yang disembunyikan.
@@ -25,6 +25,12 @@ nama file download, aturan link luar, aturan notifikasi).
 Data per akun disimpan WebKit per UUID, biasanya di `~/Library/WebKit/dev.zen.wa/`
 (kalau tidak ada: `find ~/Library -maxdepth 3 -name 'dev.zen.wa*'`).
 Daftar akun di `defaults read dev.zen.wa accounts`.
+
+## Launch pertama
+
+- macOS akan minta izin notifikasi saat launch, akses folder Downloads saat download pertama, dan kamera/mic saat call pertama.
+- Tanpa internet saat launch window kosong; Cmd+R memuat ulang setelah online.
+- `build.sh` menandatangani ad-hoc: tiap build ulang = identitas baru bagi macOS, jadi izin kamera/mic bisa ditanya lagi setelah rebuild. Pakai identitas self-signed di Keychain kalau ini mengganggu.
 
 ## Tidak ada (sengaja)
 
@@ -53,5 +59,5 @@ Angka WA diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah log
 
 | App | RAM | Storage |
 |---|---|---|
-| WA (halaman QR, 1 akun) | 55.5 MB | app 212K, data 71M |
+| WA (halaman QR, 1 akun) | 55.5 MB | app 212K, data 41M |
 | WhatsApp resmi (sisa container) | belum diukur (app tidak terpasang) | 161M + 409M (Containers + Group Containers) |
