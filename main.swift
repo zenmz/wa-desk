@@ -39,6 +39,35 @@ func uniqueURL(in dir: URL, name: String, exists: (URL) -> Bool) -> URL {
     return candidate
 }
 
+/// Jangan tampilkan notifikasi kalau user sedang melihat window akun itu (hindari dobel).
+func shouldNotify(appActive: Bool, windowKey: Bool) -> Bool { !(appActive && windowKey) }
+
+/// WKWebView tidak punya window.Notification. Shim ini meneruskan ke native lewat message handler "notify".
+let notificationShim = """
+(() => {
+  let seq = 0;
+  const live = {};
+  class Notification {
+    static get permission() { return "granted"; }
+    static requestPermission(cb) { if (cb) cb("granted"); return Promise.resolve("granted"); }
+    constructor(title, opts = {}) {
+      this.title = title; this.body = opts.body || ""; this.tag = opts.tag || "";
+      this.onclick = null; this.onclose = null; this.onshow = null; this.onerror = null;
+      this._id = String(++seq);
+      live[this._id] = this;
+      window.webkit.messageHandlers.notify.postMessage({
+        id: this._id, title: String(title), body: String(this.body), tag: String(this.tag)
+      });
+    }
+    close() { delete live[this._id]; if (this.onclose) this.onclose(); }
+    addEventListener(type, fn) { if (type === "click") this.onclick = fn; }
+    removeEventListener() {}
+  }
+  window.Notification = Notification;
+  window.__waNotifClick = (id) => { const n = live[id]; if (n && n.onclick) n.onclick(new Event("click")); };
+})();
+"""
+
 // MARK: - Selftest
 
 func selftest() -> Int32 {
@@ -73,6 +102,9 @@ func selftest() -> Int32 {
     check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).lastPathComponent == "evil.jpg", "uniqueURL strips path")
     check(uniqueURL(in: dir, name: "../../evil.jpg", exists: exists).deletingLastPathComponent().path == dir.path, "uniqueURL stays in dir")
     check(uniqueURL(in: dir, name: "", exists: exists).lastPathComponent == "download", "uniqueURL empty name")
+    check(shouldNotify(appActive: true, windowKey: true) == false, "shouldNotify ditekan saat dilihat")
+    check(shouldNotify(appActive: true, windowKey: false) == true, "shouldNotify tab lain")
+    check(shouldNotify(appActive: false, windowKey: true) == true, "shouldNotify app background")
 
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
@@ -125,6 +157,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         // UA setara Safari supaya lolos cek browser WhatsApp Web.
         cfg.applicationNameForUserAgent = "Version/26.0 Safari/605.1.15"
         cfg.preferences.isElementFullscreenEnabled = true
+        cfg.userContentController.addUserScript(WKUserScript(
+            source: notificationShim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.allowsMagnification = true
 
@@ -133,6 +167,7 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered, defer: false)
         super.init(window: win)
+        webView.configuration.userContentController.add(self, name: "notify")
 
         win.title = "WhatsApp"
         win.isReleasedWhenClosed = false
@@ -231,13 +266,36 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
     }
 }
 
+// MARK: - Notifikasi
+
+extension AccountWindow: WKScriptMessageHandler {
+    func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard let body = message.body as? [String: Any],
+              let nid = body["id"] as? String, Int(nid) != nil else { return }
+        guard shouldNotify(appActive: NSApp.isActive, windowKey: window?.isKeyWindow ?? false) else { return }
+
+        let content = UNMutableNotificationContent()
+        content.title = body["title"] as? String ?? ""
+        content.body = body["body"] as? String ?? ""
+        // Tanpa suara native: WhatsApp Web sudah memutar suara sendiri.
+        content.userInfo = ["account": id, "nid": nid]
+        let tag = body["tag"] as? String ?? ""
+        // Tag sama (chat sama) → notifikasi lama diganti, tidak menumpuk.
+        let identifier = tag.isEmpty ? "\(id)-\(nid)" : "\(id)-\(tag)"
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: identifier, content: content, trigger: nil))
+    }
+}
+
 // MARK: - AppDelegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     private(set) var accounts: [AccountWindow] = []
 
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         for id in Accounts.all() { open(id: id) }
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -278,6 +336,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func refreshBadge() {
         NSApp.dockTile.badgeLabel = badgeLabel(total: accounts.reduce(0) { $0 + $1.unread })
+    }
+
+    // MARK: notifikasi
+
+    /// Tampilkan banner walau app di foreground (user mungkin sedang di tab akun lain).
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        handler([.banner, .list])
+    }
+
+    /// Klik notifikasi → fokus akun terkait dan teruskan onclick ke WhatsApp supaya chat terbuka.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler handler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if let accountID = info["account"] as? String,
+           let account = accounts.first(where: { $0.id == accountID }) {
+            NSApp.activate(ignoringOtherApps: true)
+            present(account)
+            if let nid = info["nid"] as? String, Int(nid) != nil {
+                account.webView.evaluateJavaScript("window.__waNotifClick('\(nid)')")
+            }
+        }
+        handler()
     }
 
     // MARK: menu actions
