@@ -368,6 +368,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func zoomOut() { current?.webView.pageZoom -= 0.1 }
     @objc func zoomReset() { current?.webView.pageZoom = 1 }
 
+    @objc func newAccount() { open(id: Accounts.add()) }
+
+    /// Tombol "+" di tab bar macOS memanggil ini lewat responder chain.
+    @objc func newWindowForTab(_ sender: Any?) { newAccount() }
+
+    @objc func removeAccount() {
+        guard let account = current, let win = account.window else { return }
+        let alert = NSAlert()
+        alert.messageText = "Hapus akun ini dari WA?"
+        alert.informativeText = "Sesi login dan cache akun ini di Mac ikut dihapus. Chat di HP tidak terpengaruh."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Hapus")
+        alert.addButton(withTitle: "Batal")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let id = account.id
+        account.webView.stopLoading()
+        account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
+        win.close()
+        accounts.removeAll { $0 === account }
+        Accounts.remove(id)
+        refreshBadge()
+        // ponytail: tunda 1 detik supaya WebKit sempat melepas data store; kalau tetap gagal cukup log, foldernya tidak dipakai lagi.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            WKWebsiteDataStore.remove(forIdentifier: UUID(uuidString: id)!) { error in
+                if let error {
+                    FileHandle.standardError.write(Data("hapus data store gagal: \(error.localizedDescription)\n".utf8))
+                }
+            }
+        }
+        if accounts.isEmpty { open(id: Accounts.all()[0]) }
+    }
+
     private func buildMenu() {
         let main = NSMenu()
         func item(_ title: String, _ action: Selector?, _ key: String = "",
@@ -391,6 +424,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             item("Quit WA", #selector(NSApplication.terminate(_:)), "q"),
         ])
         _ = menu("File", [
+            item("Akun Baru", #selector(newAccount), "n"),
+            item("Hapus Akun Ini…", #selector(removeAccount)),
+            .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
         ])
         // Selector standar responder chain: tanpa ini Cmd+C/V tidak jalan di WKWebView.
