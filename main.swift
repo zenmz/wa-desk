@@ -138,6 +138,21 @@ enum Accounts {
     static func remove(_ id: String) {
         defaults.set(all().filter { $0 != id }, forKey: key)
     }
+
+    // Akun yang datanya masih harus dihapus (gagal / keburu quit). Dicoba lagi tiap launch.
+    private static let pendingKey = "pendingRemoval"
+
+    static func pendingRemoval() -> [String] {
+        validAccountIDs(defaults.stringArray(forKey: pendingKey) ?? [])
+    }
+
+    static func markPendingRemoval(_ id: String) {
+        defaults.set(pendingRemoval() + [id], forKey: pendingKey)
+    }
+
+    static func clearPendingRemoval(_ id: String) {
+        defaults.set(pendingRemoval().filter { $0 != id }, forKey: pendingKey)
+    }
 }
 
 
@@ -296,6 +311,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         buildMenu()
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        Accounts.pendingRemoval().forEach(purgeDataStore)
         for id in Accounts.all() { open(id: id) }
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -336,6 +352,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func refreshBadge() {
         NSApp.dockTile.badgeLabel = badgeLabel(total: accounts.reduce(0) { $0 + $1.unread })
+    }
+
+    /// Hapus data store akun yang sudah dihapus. Dipanggil saat hapus akun dan saat launch,
+    /// karena WebKit menolak menghapus store yang masih dipakai dan quit bisa keburu terjadi.
+    func purgeDataStore(_ id: String) {
+        guard let uuid = UUID(uuidString: id) else { return }
+        WKWebsiteDataStore.remove(forIdentifier: uuid) { error in
+            if let error {
+                FileHandle.standardError.write(Data("hapus data store \(id) gagal: \(error.localizedDescription)\n".utf8))
+            } else {
+                Accounts.clearPendingRemoval(id)
+            }
+        }
     }
 
     // MARK: notifikasi
@@ -386,17 +415,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let id = account.id
         account.webView.stopLoading()
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
+        win.contentView = nil
         win.close()
         accounts.removeAll { $0 === account }
         Accounts.remove(id)
+        Accounts.markPendingRemoval(id)
         refreshBadge()
-        // ponytail: tunda 1 detik supaya WebKit sempat melepas data store; kalau tetap gagal cukup log, foldernya tidak dipakai lagi.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            WKWebsiteDataStore.remove(forIdentifier: UUID(uuidString: id)!) { error in
-                if let error {
-                    FileHandle.standardError.write(Data("hapus data store gagal: \(error.localizedDescription)\n".utf8))
-                }
-            }
+        // ponytail: tunda 1 detik supaya WebKit sempat melepas store; kalau masih gagal atau app keburu quit, diulang saat launch berikutnya.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            self?.purgeDataStore(id)
         }
         if accounts.isEmpty { open(id: Accounts.all()[0]) }
     }
