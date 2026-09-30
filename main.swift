@@ -18,6 +18,25 @@ func validAccountIDs(_ raw: [String]) -> [String] {
 /// Badge Dock: nil saat 0 supaya badge hilang, bukan menampilkan "0".
 func badgeLabel(total: Int) -> String? { total > 0 ? String(total) : nil }
 
+/// Host selain web.whatsapp.com dibuka di browser default. Tanpa host (about:blank) = internal.
+func isExternal(_ url: URL) -> Bool {
+    guard let host = url.host else { return false }
+    return host != "web.whatsapp.com"
+}
+
+/// Nama file unik di dir: "a.jpg" → "a (1).jpg" → "a (2).jpg" … supaya download tidak menimpa.
+func uniqueURL(in dir: URL, name: String, exists: (URL) -> Bool) -> URL {
+    let base = (name as NSString).deletingPathExtension
+    let ext = (name as NSString).pathExtension
+    var candidate = dir.appendingPathComponent(name)
+    var n = 1
+    while exists(candidate) {
+        candidate = dir.appendingPathComponent(ext.isEmpty ? "\(base) (\(n))" : "\(base) (\(n)).\(ext)")
+        n += 1
+    }
+    return candidate
+}
+
 // MARK: - Selftest
 
 func selftest() -> Int32 {
@@ -36,6 +55,18 @@ func selftest() -> Int32 {
 
     check(badgeLabel(total: 0) == nil, "badgeLabel nil saat 0")
     check(badgeLabel(total: 7) == "7", "badgeLabel 7")
+
+    check(isExternal(URL(string: "https://web.whatsapp.com/")!) == false, "isExternal wa")
+    check(isExternal(URL(string: "https://example.com/x")!) == true, "isExternal other")
+    check(isExternal(URL(string: "https://wa.me/628")!) == true, "isExternal wa.me")
+    check(isExternal(URL(string: "about:blank")!) == false, "isExternal no host")
+
+    let dir = URL(fileURLWithPath: "/tmp/wa-selftest")
+    let taken: Set<String> = ["a.jpg", "a (1).jpg", "noext"]
+    let exists: (URL) -> Bool = { taken.contains($0.lastPathComponent) }
+    check(uniqueURL(in: dir, name: "b.jpg", exists: exists).lastPathComponent == "b.jpg", "uniqueURL free")
+    check(uniqueURL(in: dir, name: "a.jpg", exists: exists).lastPathComponent == "a (2).jpg", "uniqueURL suffix")
+    check(uniqueURL(in: dir, name: "noext", exists: exists).lastPathComponent == "noext (1)", "uniqueURL no ext")
 
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
@@ -103,6 +134,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         win.tabbingIdentifier = "wa"
         win.contentView = webView
         win.delegate = self
+        webView.navigationDelegate = self
+        webView.uiDelegate = self
         win.center()
         win.setFrameAutosaveName("win-\(id)")
 
@@ -125,6 +158,72 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     }
 }
 
+
+// MARK: - Navigasi, download, media
+
+extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
+                 decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        if action.shouldPerformDownload { return decisionHandler(.download) }
+        if action.navigationType == .linkActivated, let url = action.request.url, isExternal(url) {
+            NSWorkspace.shared.open(url)
+            return decisionHandler(.cancel)
+        }
+        decisionHandler(.allow)
+    }
+
+    func webView(_ webView: WKWebView, decidePolicyFor response: WKNavigationResponse,
+                 decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+        decisionHandler(response.canShowMIMEType ? .allow : .download)
+    }
+
+    func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+        download.delegate = self
+    }
+
+    func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+        download.delegate = self
+    }
+
+    func download(_ download: WKDownload, decideDestinationUsing response: URLResponse,
+                  suggestedFilename: String, completionHandler: @escaping (URL?) -> Void) {
+        let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+        completionHandler(uniqueURL(in: dir, name: suggestedFilename) {
+            FileManager.default.fileExists(atPath: $0.path)
+        })
+    }
+
+    func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
+        FileHandle.standardError.write(Data("download gagal: \(error.localizedDescription)\n".utf8))
+    }
+
+    /// target=_blank / window.open → browser default. Hanya skema http(s).
+    func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
+                 for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if let url = action.request.url, url.scheme?.hasPrefix("http") == true {
+            NSWorkspace.shared.open(url)
+        }
+        return nil
+    }
+
+    /// Kamera/mic untuk call. TCC macOS tetap prompt sekali (teks di Info.plist).
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+                 initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
+                 decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        decisionHandler(origin.host == "web.whatsapp.com" ? .grant : .deny)
+    }
+
+    /// Tombol attach di WhatsApp → NSOpenPanel.
+    func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
+                 initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
+        guard let win = window else { return completionHandler(nil) }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = parameters.allowsMultipleSelection
+        panel.canChooseDirectories = parameters.allowsDirectories
+        panel.canChooseFiles = true
+        panel.beginSheetModal(for: win) { completionHandler($0 == .OK ? panel.urls : nil) }
+    }
+}
 
 // MARK: - AppDelegate
 
