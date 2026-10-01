@@ -158,6 +158,9 @@ icon/make-icon.swift icon digambar dengan CoreGraphics saat build
 
 `./build.sh` mengompilasi semua file dengan `swiftc`, menggambar icon, membungkus `WA Desk.app`,
 codesign ad-hoc, lalu menjalankan `wa-desk --selftest`; build gagal kalau selftest gagal.
+`DEV=1 ./build.sh` menghasilkan bundle id `dev.zen.wa.dev` ("WA Desk Dev") dengan UserDefaults dan data
+WebKit terpisah: pakai ini untuk menguji build sambil WA Desk terpasang tetap jalan. **Jangan** menjalankan dua
+instance dengan bundle id yang sama pada saat bersamaan: keduanya membuka data store yang sama dan sesi login bisa rusak.
 Semua ketergantungan pada DOM WhatsApp sengaja dikumpulkan di `Tweaks.swift` (`tweaksScript`,
 `tweaksStyle`). Desain dan plan ada di `docs/superpowers/`. Checklist uji manual: [docs/smoke-test.md](docs/smoke-test.md).
 

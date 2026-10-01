@@ -23,6 +23,13 @@ iconutil -c icns "$ICON_TMP/AppIcon.iconset" -o "$APP/Contents/Resources/AppIcon
 rm -rf "$ICON_TMP"
 
 cp Info.plist "$APP/Contents/Info.plist"
+# DEV=1: bundle id dan nama berbeda supaya build uji bisa jalan berdampingan dengan WA Desk terpasang
+# tanpa berbagi UserDefaults dan data store WebKit (menjalankan dua instance pada data yang sama merusak sesi).
+if [ "${DEV:-0}" = "1" ]; then
+  plutil -replace CFBundleIdentifier -string dev.zen.wa.dev "$APP/Contents/Info.plist"
+  plutil -replace CFBundleName -string "WA Desk Dev" "$APP/Contents/Info.plist"
+  plutil -replace CFBundleDisplayName -string "WA Desk Dev" "$APP/Contents/Info.plist"
+fi
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 # Ad-hoc sign: TCC (kamera/mic) dan UNUserNotificationCenter butuh identitas bundle stabil.
 codesign --force --sign - "$APP"
