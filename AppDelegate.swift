@@ -192,6 +192,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc func reloadCustomCSS() {
         guard let css = customCSS() else {
+            broadcast("setCustomCSS", ["css": ""])
             current?.tweak("toast", ["msg": "Tidak ada ~/.config/wa-desk/custom.css"])
             return
         }
@@ -292,7 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         alert.addButton(withTitle: "Batal")
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard tagNameValid(name), !acc.store.tags.tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
             NSSound.beep()
             acc.tweak("toast", ["msg": "Nama tag kosong, >24 karakter, atau sudah ada"])
@@ -361,12 +362,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         account.webView.stopLoading()
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "wadesk")
+        account.bookmarksPanel?.close()
         win.contentView = nil
         win.close()
         NSWindow.removeFrame(usingName: "win-\(id)")
         accounts.removeAll { $0 === account }
         Accounts.remove(id)
         Accounts.markPendingRemoval(id)
+        // Alert menjanjikan data lokal akun dihapus: bookmark/tag ikut dihapus.
+        try? FileManager.default.removeItem(at: account.store.dir)
         refreshBadge()
         // ponytail: tunda 1 detik supaya WebKit sempat melepas store; kalau masih gagal atau app keburu quit, diulang saat launch berikutnya.
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in

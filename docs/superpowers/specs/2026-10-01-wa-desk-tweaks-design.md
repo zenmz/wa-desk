@@ -133,15 +133,15 @@ Baris tak cocok filter **diredupkan**, bukan disembunyikan: daftar chat WhatsApp
 | (init) | sisipkan `<style id="wadesk">`; pasang `mouseover` di `document` yang mengingat `#main div[data-id]` terakhir di-hover; pasang satu `MutationObserver` di `document.body` (childList, subtree, throttle 250 ms) yang memanggil `markBanner()` dan `applyTags()` |
 | `capture()` | dari pesan terakhir di-hover: `{id, chat, jid, text, time, fromMe}`; `chat` = `#main header span[title]`.title; `text` = `[data-pre-plain-text]`/`.selectable-text` innerText atau fallback innerText pesan, dipotong 300; `time` = atribut `data-pre-plain-text` bagian `[…]` atau `""`; `fromMe` = data-id diawali `true_`; `jid` = segmen ke-2 data-id. Tidak ada pesan di-hover → `null` |
 | `currentChat()` | `{title, jid}` chat yang terbuka (`jid` dari `#main div[data-id]` mana pun), atau `null` |
-| `openChat(title, jid)` | cari `#pane-side span[title]` yang `title === title` → dispatch `mousedown`,`mouseup`,`click` pada `closest('[role="listitem"]')` → `"clicked"`. Tidak ada & `jid` berakhiran `@c.us` → `location.href = "https://web.whatsapp.com/send?phone=" + nomor` → `"navigated"`. Selain itu `"missing"` |
+| `openChat(title, jid)` | cari `#pane-side span[title]` yang `title === title` → dispatch `mousedown`,`mouseup`,`click` pada `span[title]` di dalam baris (bubbling sampai listitem) → `"clicked"`. Tidak ada & `jid` berakhiran `@c.us` → `location.href = "https://web.whatsapp.com/send?phone=" + nomor` → `"navigated"`. Selain itu `"missing"` |
 | `jumpTo(id, title)` | poll ≤ 3 s sampai `#main header span[title]`.title === title; lalu `#main div[data-id="<id>"]` → `scrollIntoView({block:"center"})`, tambah `.wadesk-flash` 2 s → `true`; tidak ketemu → `false` |
 | `setTags(map)` | `map` = {judul: [warnaHex…]}; simpan; `applyTags()`: tiap baris `[role="listitem"]`: judul → `colors`; titik memakai warna pertama: `row.dataset.wadeskTag = colors[0] || ""`, `row.style.setProperty("--wadesk-tag", colors[0])`, dan `row.dataset.wadeskMatch` = `"1"` kalau filter kosong atau `colors.includes(filter)`, selain itu `"0"` |
 | `setFilter(color)` | simpan; `html.dataset.wadeskFilter = color`; `applyTags()` |
 | `setBlur(on)`, `setHideBanner(on)` | set `html.dataset.wadeskBlur` / `wadeskHideBanner` ke `"1"`/`""` |
-| `markBanner()` | untuk tiap `button[data-testid^="download-native-client-button"]`: naik ke leluhur sampai `textContent` memuat `/download whatsapp/i` **dan** tidak memuat `[data-testid="link-device-qr-code"]` dan bukan `#app`/`body` → `el.dataset.wadeskBanner = "1"` |
+| `markBanner()` | untuk tiap tombol download: naik ≤ 8 tingkat selama induk bukan `body`/`#app`, tidak cocok/berisi `#pane-side`, `#main`, `[role=listitem]`, QR, `header`, `[role=textbox]`, `[contenteditable]`, `input`, `textarea`, dan hanya memuat satu tombol download → tandai node tertinggi itu dengan `data-wadesk-banner="1"` |
 | `setCustomCSS(text)` | isi/ganti `<style id="wadesk-custom">` |
 | `toast(msg)` | tampilkan `#wadesk-toast` 1.6 s |
-| `debug()` | `{paneSide, main, rows, messages, bannerButtons, hovered}` (boolean/jumlah) |
+| `debug()` | `{paneSide, main, rows, messages, bannerButtons, hovered}` (boolean/jumlah), `banner`: daftar node yang ditandai banner |
 
 Semua fungsi `try/catch` internal; gagal → kembalikan `null`/`false`, tidak melempar.
 

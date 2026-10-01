@@ -155,7 +155,8 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
-  const BIG = '#pane-side, #main, [role="listitem"], [data-testid="link-device-qr-code"]';
+  // Pembatas naik saat mencari kartu banner: daftar chat, panel pesan, baris, QR, dan header/kolom cari sidebar.
+  const BIG = '#pane-side, #main, [role="listitem"], [data-testid="link-device-qr-code"], header, [role="textbox"], [contenteditable="true"], input, textarea';
   const BANNER_BTN = 'button[data-testid^="download-native-client-button"]';
 
   function ensureStyle(id, css) {
@@ -168,7 +169,8 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   function applyTags() {
     for (const row of $$('#pane-side [role="listitem"]')) {
       const t = rowTitle(row);
-      const colors = (t && W.tags[t]) || [];
+      // hasOwnProperty + Array.isArray: judul chat seperti "constructor" tidak boleh mengambil properti prototype.
+      const colors = (t && Object.prototype.hasOwnProperty.call(W.tags, t) && Array.isArray(W.tags[t])) ? W.tags[t] : [];
       const color = colors[0] || "";
       if (row.dataset.wadeskTag !== color) {
         row.dataset.wadeskTag = color;
@@ -221,8 +223,9 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   }
 
   function openChat(title, jid) {
-    const span = $$('#pane-side span[title]').find(s => s.getAttribute("title") === title);
-    if (span) { click(span.closest('[role="listitem"]') || span); return "clicked"; }
+    // Klik di node terdalam (judul) supaya handler React di elemen dalam baris ikut kena; event bubbling tetap sampai listitem.
+    const row = $$('#pane-side [role="listitem"]').find(r => rowTitle(r) === title);
+    if (row) { click(row.querySelector("span[title]") || row); return "clicked"; }
     if (jid && /@c\.us$/.test(jid)) { location.href = "https://web.whatsapp.com/send?phone=" + jid.replace(/@c\.us$/, ""); return "navigated"; }
     return "missing";
   }
@@ -231,6 +234,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
     return new Promise(resolve => {
       const t0 = Date.now();
       const tick = () => {
+        try {
         const header = $('#main header span[title]');
         if (header && header.getAttribute("title") === title) {
           const msg = $('#main div[data-id="' + CSS.escape(id) + '"]');
@@ -242,6 +246,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
         }
         if (Date.now() - t0 > 3000) return resolve(false);
         setTimeout(tick, 100);
+        } catch (e) { resolve(false); }
       };
       tick();
     });
@@ -258,10 +263,11 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
 
   function debug() {
     return { paneSide: !!$('#pane-side'), main: !!$('#main'), rows: $$('#pane-side [role="listitem"]').length,
-             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, hovered: !!W.hovered };
+             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, hovered: !!W.hovered,
+             banner: $$('[data-wadesk-banner="1"]').map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className || "").trim().split(/\s+/).slice(0, 2).join(".")) };
   }
 
-  function safe(fn, fallback) { return (...a) => { try { return fn(...a); } catch (e) { return fallback; } }; }
+  function safe(fn, fallback) { return (...a) => { try { return fn(...a); } catch (e) { console.warn("wadesk", fn.name, e); return fallback; } }; }
 
   root.__wadesk = {
     capture: safe(capture, null),
@@ -288,7 +294,8 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
     if (pending) return;
     pending = true;
     setTimeout(() => {
-      pending = false; markBanner(); applyTags();
+      pending = false;
+      try { markBanner(); applyTags(); } catch (e) { console.warn("wadesk", e); }
       const cc = currentChat(); const t = cc ? cc.title : "";
       if (t !== W.lastChat) {
         W.lastChat = t;

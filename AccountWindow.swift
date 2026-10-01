@@ -12,7 +12,7 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     let store: TweakStore
     /// Warna tag yang sedang difilter di akun ini ("" = semua). Sesi saja.
     var tagFilter = ""
-    private var bookmarksPanel: BookmarksPanel?
+    private(set) var bookmarksPanel: BookmarksPanel?
     /// Judul chat yang sedang terbuka, dilaporkan JS lewat handler "wadesk". nil = tidak ada chat.
     private(set) var openChatTitle: String?
 

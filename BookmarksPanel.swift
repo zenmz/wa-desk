@@ -27,12 +27,18 @@ final class BookmarksPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate 
         title = "Bookmark"
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
+        // Tetap terlihat saat app tidak aktif, tapi jangan melayang di atas window app lain.
+        isFloatingPanel = false
         for (id, name, width) in [("chat", "Chat", 140.0), ("text", "Pesan", 240.0), ("time", "Waktu", 120.0)] {
             let col = NSTableColumn(identifier: .init(id))
             col.title = name
             col.width = width
             table.addTableColumn(col)
         }
+        table.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        table.tableColumns[1].resizingMask = [.autoresizingMask, .userResizingMask]   // Pesan mengambil sisa lebar
+        table.tableColumns[0].resizingMask = .userResizingMask
+        table.tableColumns[2].resizingMask = .userResizingMask
         table.dataSource = self
         table.delegate = self
         table.usesAlternatingRowBackgroundColors = true
