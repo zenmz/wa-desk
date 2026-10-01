@@ -179,7 +179,7 @@ Carbon `RegisterEventHotKey(kVK_ANSI_W, cmdKey|optionKey, …)` + `InstallEventH
 
 ### 6.4 `BookmarksPanel` (per akun, dibuat malas)
 
-`NSPanel` 520×460, `.titled, .closable, .resizable, .utilityWindow`, judul "Bookmark — <judul tab>".
+`NSPanel` 520×460, `.titled, .closable, .resizable, .utilityWindow`, judul "Bookmark".
 `NSTableView` 3 kolom: Chat (140), Pesan (sisa), Waktu (120); urut `savedAt` menurun.
 Return / dobel-klik → `openChat` lalu, kalau hasil `"clicked"`, `jumpTo`; `"navigated"` →
 toast "Membuka chat…"; `"missing"` → toast "Chat tidak terlihat di daftar"; `jumpTo` false →
@@ -220,7 +220,7 @@ func tagMap(_ data: TagData) -> [String: String]      // judul → warna tag per
 
 | Situasi | Perilaku |
 |---|---|
-| Jangkar DOM tidak ada (WhatsApp berubah) | fungsi JS kembalikan `null`/`false`; native toast "Struktur WhatsApp berubah, jalankan Tweaks → Debug Selector" |
+| Jangkar DOM tidak ada (WhatsApp berubah) | fungsi JS kembalikan `null`/`false` (semua dibungkus try/catch); native menampilkan toast spesifik di bawah; diagnosis lewat Tweaks → Debug Selector (✗ = selector perlu diperbarui) |
 | `capture()` null karena belum hover | toast "Arahkan kursor ke pesan dulu" |
 | Chat bookmark tidak terlihat di daftar & bukan nomor | toast "Chat tidak terlihat di daftar"; tidak ada navigasi |
 | Pesan lama belum dimuat | chat terbuka, toast "Pesan lama, scroll manual" |
