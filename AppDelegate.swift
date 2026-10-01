@@ -205,7 +205,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             let d = v as? [String: Any] ?? [:]
             FileHandle.standardError.write(Data("wadesk debug: \(d)\n".utf8))
             let ok: (String) -> String = { (d[$0] as? Bool ?? false) ? "✓" : "✗" }
-            acc.tweak("toast", ["msg": "pane:\(ok("paneSide")) main:\(ok("main")) rows:\(d["rows"] ?? 0) msgs:\(d["messages"] ?? 0) banner:\(d["bannerButtons"] ?? 0)"])
+            acc.tweak("toast", ["msg": "pane:\(ok("paneSide")) main:\(ok("main")) rows:\(d["rows"] ?? 0) msgs:\(d["messages"] ?? 0) banner:\(d["bannerButtons"] ?? 0)+\(d["bannerText"] ?? 0) → debug-dom.txt"])
+        }
+        // Dump struktur DOM ke file supaya selector bisa diperbaiki tanpa copy-paste dari user.
+        acc.tweak("dump") { v in
+            guard let text = v as? String, !text.isEmpty else { return }
+            let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("wa-desk")
+            let url = dir.appendingPathComponent("debug-dom.txt")
+            do {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                try text.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                FileHandle.standardError.write(Data("tulis debug-dom.txt gagal: \(error.localizedDescription)\n".utf8))
+            }
         }
     }
 

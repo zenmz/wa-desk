@@ -8,7 +8,7 @@ Dasar: `docs/superpowers/specs/2026-09-30-wa-wkwebview-client-design.md` (app in
 
 Fitur yang tidak ada di WhatsApp Web, berjalan lokal di Mac:
 
-1. Blur privasi: daftar chat dan panel pesan dikaburkan, jelas saat kursor di atasnya.
+1. Blur privasi: tiap baris chat, tiap pesan, dan header chat dikaburkan sendiri-sendiri; yang di bawah kursor jelas.
 2. Sembunyikan banner "Download WhatsApp for Mac".
 3. Bookmark pesan tanpa batas (pengganti pin, yang batasnya ditegakkan server WhatsApp).
 4. Tag/label chat lokal dengan titik warna dan filter.
@@ -108,8 +108,10 @@ tulis atomik (`Data.write(options: .atomic)`). File korup atau skema tak cocok â
 ### 5.1 `tweaksStyle`
 
 ```css
-html[data-wadesk-blur="1"] #pane-side, html[data-wadesk-blur="1"] #main { filter: blur(9px); transition: filter .15s; }
-html[data-wadesk-blur="1"] #pane-side:hover, html[data-wadesk-blur="1"] #main:hover { filter: none; }
+html[data-wadesk-blur="1"] #pane-side [role="listitem"], html[data-wadesk-blur="1"] #main div[data-id],
+html[data-wadesk-blur="1"] #main header { filter: blur(6px); transition: filter .12s; }
+html[data-wadesk-blur="1"] #pane-side [role="listitem"]:hover, html[data-wadesk-blur="1"] #main div[data-id]:hover,
+html[data-wadesk-blur="1"] #main header:hover { filter: none; }
 html[data-wadesk-hide-banner="1"] [data-wadesk-banner="1"] { display: none !important; }
 #pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""]) { position: relative; }
 #pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""])::after {

@@ -130,8 +130,10 @@ func jsStringLiteral(_ s: String) -> String {
 }
 
 let tweaksStyle = """
-html[data-wadesk-blur="1"] #pane-side, html[data-wadesk-blur="1"] #main { filter: blur(9px); transition: filter .15s; }
-html[data-wadesk-blur="1"] #pane-side:hover, html[data-wadesk-blur="1"] #main:hover { filter: none; }
+html[data-wadesk-blur="1"] #pane-side [role="listitem"], html[data-wadesk-blur="1"] #main div[data-id],
+html[data-wadesk-blur="1"] #main header { filter: blur(6px); transition: filter .12s; }
+html[data-wadesk-blur="1"] #pane-side [role="listitem"]:hover, html[data-wadesk-blur="1"] #main div[data-id]:hover,
+html[data-wadesk-blur="1"] #main header:hover { filter: none; }
 html[data-wadesk-hide-banner="1"] [data-wadesk-banner="1"] { display: none !important; }
 #pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""])::after {
   content: ""; position: absolute; right: 12px; top: 10px; width: 9px; height: 9px;
@@ -158,6 +160,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   // Pembatas naik saat mencari kartu banner: daftar chat, panel pesan, baris, QR, dan header/kolom cari sidebar.
   const BIG = '#pane-side, #main, [role="listitem"], [data-testid="link-device-qr-code"], header, [role="textbox"], [contenteditable="true"], input, textarea';
   const BANNER_BTN = 'button[data-testid^="download-native-client-button"]';
+  const BANNER_TEXT = /(get|download|unduh|dapatkan)\s+whatsapp\s+(for|untuk)\s+mac|whatsapp\s+for\s+mac/i;
 
   function ensureStyle(id, css) {
     let el = document.getElementById(id);
@@ -185,16 +188,59 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
 
   // Naik dari tombol download ke leluhur tertinggi yang masih "kartu banner":
   // tidak memuat daftar chat / panel pesan / QR, dan hanya punya satu tombol download.
-  function markBanner() {
-    for (const btn of $$(BANNER_BTN)) {
-      let top = btn;
-      for (let i = 0; i < 8; i++) {
-        const p = top.parentElement;
-        if (!p || p === document.body || p.id === "app" || p.matches(BIG) || p.querySelector(BIG) || p.querySelectorAll(BANNER_BTN).length !== 1) break;
-        top = p;
-      }
-      if (top.dataset.wadeskBanner !== "1") top.dataset.wadeskBanner = "1";
+  // Naik dari titik awal (tombol download atau teks banner) ke leluhur tertinggi yang masih "kartu banner".
+  function markFrom(start) {
+    let top = start;
+    for (let i = 0; i < 8; i++) {
+      const p = top.parentElement;
+      if (!p || p === document.body || p.id === "app" || p.matches(BIG) || p.querySelector(BIG) || p.querySelectorAll(BANNER_BTN).length > 1) break;
+      top = p;
     }
+    if (top.dataset.wadeskBanner !== "1") top.dataset.wadeskBanner = "1";
+  }
+  // Banner dalam-app ("Get WhatsApp for Mac") tidak memakai tombol ber-testid; cari dari teksnya.
+  // Hanya daun teks di luar #main dan di luar baris chat: pesan/preview yang menyebut "WhatsApp for Mac" tidak boleh ikut.
+  function bannerTextLeaves(includeMarked) {
+    const scope = $('#app') || document;
+    const skip = includeMarked ? '#main, #pane-side, [role="listitem"]' : '#main, #pane-side, [role="listitem"], [data-wadesk-banner="1"]';
+    return $$('span, div, h1, h2, h3, p, a, button', scope).filter(e =>
+      e.children.length === 0 && BANNER_TEXT.test(e.textContent || "") && !e.closest(skip));
+  }
+  function markBanner() {
+    for (const btn of $$(BANNER_BTN)) markFrom(btn);
+    for (const leaf of bannerTextLeaves()) markFrom(leaf);
+  }
+
+  // Ringkasan struktur DOM untuk diagnosis selector (ditulis native ke debug-dom.txt).
+  function describe(el) {
+    const attrs = ["id", "role", "data-testid", "aria-label", "title"]
+      .map(a => el.getAttribute(a) ? a + "=" + JSON.stringify(el.getAttribute(a).slice(0, 40)) : "").filter(Boolean).join(" ");
+    const cls = String(el.className || "").trim().split(/\s+/).filter(Boolean).slice(0, 2).join(".");
+    const own = Array.from(el.childNodes).filter(n => n.nodeType === 3).map(n => n.textContent.trim()).filter(Boolean).join(" ").slice(0, 60);
+    return el.tagName.toLowerCase() + (cls ? "." + cls : "") + (attrs ? " " + attrs : "") + (own ? ' "' + own + '"' : "") + (el.dataset.wadeskBanner ? " [BANNER]" : "");
+  }
+  function outline(el, depth, maxDepth, lines) {
+    if (!el || depth > maxDepth || lines.length > 350) return;
+    if (el.id === "pane-side") { lines.push("  ".repeat(depth) + "#pane-side (" + $$('[role="listitem"]', el).length + " baris, isi dilewati)"); return; }
+    if (el.id === "main") { lines.push("  ".repeat(depth) + "#main (isi dilewati)"); return; }
+    lines.push("  ".repeat(depth) + describe(el));
+    for (const c of el.children) outline(c, depth + 1, maxDepth, lines);
+  }
+  function chain(el) { const out = []; for (let i = 0; i < 10 && el && el !== document.body; i++) { out.push(describe(el)); el = el.parentElement; } return out.join("\n    < "); }
+  function dump() {
+    const lines = ["== WA Desk debug-dom " + new Date().toISOString(), "URL " + location.href, ""];
+    lines.push("== A. Elemen yang menyebut WhatsApp for Mac (rantai leluhur) ==");
+    const scope = $('#app') || document;
+    for (const leaf of $$('span, div, h1, h2, h3, p, a, button', scope).filter(e => e.children.length === 0 && BANNER_TEXT.test(e.textContent || "")).slice(0, 8)) {
+      lines.push("- " + chain(leaf), "");
+    }
+    lines.push("== B. Outline #app (tanpa isi #pane-side/#main) ==");
+    outline(scope === document ? document.body : scope, 0, 9, lines);
+    lines.push("", "== C. Baris chat pertama (outerHTML) ==", ($('#pane-side [role="listitem"]') || {}).outerHTML?.slice(0, 2500) || "(tidak ada)");
+    lines.push("", "== D. Pesan pertama (outerHTML) ==", ($('#main div[data-id]') || {}).outerHTML?.slice(0, 2500) || "(tidak ada)");
+    lines.push("", "== E. Header chat (outerHTML) ==", ($('#main header') || {}).outerHTML?.slice(0, 1500) || "(tidak ada)");
+    lines.push("", "== F. debug() ==", JSON.stringify(debug()));
+    return lines.join("\n");
   }
 
   function capture() {
@@ -263,7 +309,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
 
   function debug() {
     return { paneSide: !!$('#pane-side'), main: !!$('#main'), rows: $$('#pane-side [role="listitem"]').length,
-             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, hovered: !!W.hovered,
+             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, bannerText: bannerTextLeaves(true).length, hovered: !!W.hovered,
              banner: $$('[data-wadesk-banner="1"]').map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className || "").trim().split(/\s+/).slice(0, 2).join(".")) };
   }
 
@@ -276,6 +322,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
     jumpTo: (id, title) => jumpTo(id, title).catch(() => false),
     toast: safe(toast, undefined),
     debug: safe(debug, null),
+    dump: safe(dump, ""),
     setTags: safe(map => { W.tags = map || {}; applyTags(); }, undefined),
     setFilter: safe(color => { W.filter = color || ""; html().dataset.wadeskFilter = W.filter; applyTags(); }, undefined),
     setBlur: safe(on => { html().dataset.wadeskBlur = on ? "1" : ""; }, undefined),

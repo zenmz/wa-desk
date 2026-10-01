@@ -40,7 +40,7 @@ Daftar akun di `defaults read dev.zen.wa accounts`.
 
 Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di Mac ini.
 
-- **Blur Privasi** (⇧⌘B): daftar chat dan pesan dikaburkan, jelas saat kursor di atasnya.
+- **Blur Privasi** (⇧⌘B): tiap baris chat, tiap pesan, dan header chat dikaburkan sendiri-sendiri; yang di bawah kursor jelas.
 - **Sembunyikan Banner Download**: banner "Download WhatsApp for Mac" disembunyikan (default aktif).
 - **Bookmark Pesan** (⌘D): arahkan kursor ke pesan, tekan ⌘D. **Tampilkan Bookmark…** (⇧⌘D) membuka
   panel; Return/dobel-klik membuka chat dan melompat ke pesan (kalau pesannya sudah dimuat), ⌫ menghapus.
@@ -51,8 +51,9 @@ Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di
   `defaults write dev.zen.wa dndStart 23:30` dan `defaults write dev.zen.wa dndEnd 06:00` (format HH:mm,
   boleh lewat tengah malam), lalu nyalakan di menu.
 - **Muat Ulang CSS Kustom**: `~/.config/wa-desk/custom.css` disuntik ke halaman; ubah apa pun lewat CSS.
-- **Debug Selector**: cetak jumlah elemen WhatsApp yang dikenali ke stderr dan toast. Kalau ada ✗,
-  struktur WhatsApp Web berubah dan selector di `Tweaks.swift` perlu diperbarui.
+- **Debug Selector**: toast jumlah elemen WhatsApp yang dikenali, dan tulis ringkasan struktur DOM ke
+  `~/Library/Application Support/wa-desk/debug-dom.txt`. Kalau ada ✗ atau banner masih muncul, file itu
+  yang dipakai untuk memperbarui selector di `Tweaks.swift`.
 - Window → **Selalu di Atas** (⌥⌘T): berlaku per window akun yang aktif. Hotkey global **⌥⌘W** menampilkan/menyembunyikan
   app dari mana saja. Catatan: selama WA Desk jalan, ⌥⌘W di app lain (yang biasanya "Close All") ikut tertangkap; ubah
   konstanta di `GlobalHotkey` (`Tweaks.swift`) kalau mengganggu.
