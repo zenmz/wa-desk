@@ -159,7 +159,7 @@ html[data-wadesk-filter]:not([data-wadesk-filter=""]) #pane-side [data-wadesk-ro
 
 /// Skrip inject. Harus bisa dievaluasi tanpa DOM (selftest di JSContext): semua akses DOM ada di dalam fungsi
 /// atau di belakang guard `hasDOM`.
-let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #"""
+private let tweaksScriptBody = #"""
 (() => {
   const root = typeof window !== "undefined" ? window : globalThis;
   if (root.__wadesk) return;
@@ -395,6 +395,10 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   applyTags();
 })();
 """#
+
+/// Skrip inject lengkap: konstanta style, lapisan Tweaks, lalu panel. Dievaluasi juga di JSContext (selftest).
+let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\nconst WADESK_PANEL_STYLE = \(jsStringLiteral(panelStyle));\n"
+    + tweaksScriptBody + "\n" + panelScript
 
 // MARK: - Hotkey global
 

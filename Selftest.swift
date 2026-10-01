@@ -110,7 +110,7 @@ func selftest() -> Int32 {
     check(ctx.evaluateScript("typeof __wadesk.capture")?.toString() == "function", "JS __wadesk.capture")
     check(ctx.evaluateScript("typeof __wadesk.openChat")?.toString() == "function", "JS __wadesk.openChat")
     check(ctx.evaluateScript("typeof __wadesk.debug")?.toString() == "function", "JS __wadesk.debug")
-    for fn in ["setBlur", "setHideBanner", "setCustomCSS", "setFilter", "setTags", "toast", "currentChat", "jumpTo", "dump"] {
+    for fn in ["setBlur", "setHideBanner", "setCustomCSS", "setFilter", "setTags", "toast", "currentChat", "jumpTo", "dump", "setPanelState", "openPanel"] {
         check(ctx.evaluateScript("typeof __wadesk.\(fn)")?.toString() == "function", "JS __wadesk.\(fn)")
     }
     // Nama akun
