@@ -26,6 +26,7 @@ final class BookmarksPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate 
                    backing: .buffered, defer: false)
         title = "Bookmark"
         isReleasedWhenClosed = false
+        hidesOnDeactivate = false
         for (id, name, width) in [("chat", "Chat", 140.0), ("text", "Pesan", 240.0), ("time", "Waktu", 120.0)] {
             let col = NSTableColumn(identifier: .init(id))
             col.title = name
@@ -64,7 +65,10 @@ final class BookmarksPanel: NSPanel, NSTableViewDataSource, NSTableViewDelegate 
     }
 
     private func deleteSelected() {
-        guard store.bookmarks.indices.contains(table.selectedRow) else { return }
-        store.remove(bookmarkID: store.bookmarks[table.selectedRow].id)
+        let row = table.selectedRow
+        guard store.bookmarks.indices.contains(row) else { return }
+        store.remove(bookmarkID: store.bookmarks[row].id)
+        let next = min(row, store.bookmarks.count - 1)
+        if next >= 0 { table.selectRowIndexes(IndexSet(integer: next), byExtendingSelection: false) }
     }
 }

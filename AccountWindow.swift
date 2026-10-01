@@ -88,6 +88,13 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
 
     func pushTags() { tweak("setTags", ["map": tagMap(store.tags)]) }
 
+    /// Window ini atau panel bookmark-nya. Dipakai AppDelegate.current supaya aksi menu mengenai akun yang benar
+    /// saat panel yang sedang key.
+    func owns(_ w: NSWindow?) -> Bool {
+        guard let w else { return false }
+        return w === window || w === bookmarksPanel
+    }
+
     func showBookmarksPanel() {
         if bookmarksPanel == nil {
             let p = BookmarksPanel(store: store)

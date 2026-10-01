@@ -48,9 +48,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         win.makeFirstResponder(account.webView)
     }
 
-    /// Akun yang windownya sedang key; fallback akun pertama.
+    /// Akun yang window-nya (atau panel bookmark-nya) sedang key; fallback akun pertama.
     var current: AccountWindow? {
-        accounts.first { $0.window?.isKeyWindow == true } ?? accounts.first
+        accounts.first { $0.owns(NSApp.keyWindow) } ?? accounts.first
     }
 
     func refreshBadge() {
