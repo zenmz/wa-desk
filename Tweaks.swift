@@ -164,12 +164,14 @@ private let tweaksScriptBody = #"""
   const root = typeof window !== "undefined" ? window : globalThis;
   if (root.__wadesk) return;
   const hasDOM = typeof document !== "undefined";
-  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: null };
+  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: null, bannerUnsafe: false };
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
   // Pembatas naik saat mencari kartu banner: daftar chat, panel pesan, baris, QR, dan header/kolom cari sidebar.
-  const BIG = '#pane-side, #main, [role="listitem"], [role="row"], [data-testid="link-device-qr-code"], header, [role="textbox"], [contenteditable="true"], input, textarea';
+  const BIG = '#pane-side, #main, [role="listitem"], [role="row"], [data-testid="link-device-qr-code"], canvas, header, [role="textbox"], [contenteditable="true"], input, textarea';
+  // Kartu banner itu kecil: lebih dari ini pasti bukan banner (halaman login/QR pernah ikut tersembunyi seluruhnya).
+  const MAX_BANNER_TEXT = 300, MAX_BANNER_HEIGHT = 220;
   // Baris daftar chat. WhatsApp berganti-ganti antara role=listitem, role=row, dan elemen tervirtualisasi ber-translateY;
   // ambil yang terluar saja (bersarang → satu baris), lalu tandai data-wadesk-row supaya CSS tidak perlu menebak.
   const ROW = '#pane-side [role="listitem"], #pane-side [role="row"], #pane-side [style*="translateY"]';
@@ -213,9 +215,13 @@ private let tweaksScriptBody = #"""
     let top = start;
     for (let i = 0; i < 8; i++) {
       const p = top.parentElement;
-      if (!p || p === document.body || p.id === "app" || p.matches(BIG) || p.querySelector(BIG) || p.querySelectorAll(BANNER_BTN).length > 1) break;
+      if (!p || p === document.body || p.id === "app" || p.matches(BIG) || p.querySelector(BIG) ||
+          p.querySelectorAll(BANNER_BTN).length > 1 || (p.textContent || "").length > MAX_BANNER_TEXT ||
+          p.getBoundingClientRect().height > MAX_BANNER_HEIGHT) break;
       top = p;
     }
+    // Pengaman terakhir: jangan pernah menyembunyikan yang bukan kartu kecil.
+    if ((top.textContent || "").length > MAX_BANNER_TEXT || top.querySelector(BIG)) return;
     if (top.dataset.wadeskBanner !== "1") top.dataset.wadeskBanner = "1";
   }
   // Banner dalam-app ("Get WhatsApp for Mac") tidak memakai tombol ber-testid; cari dari teksnya.
@@ -227,8 +233,16 @@ private let tweaksScriptBody = #"""
       e.children.length === 0 && BANNER_TEXT.test(e.textContent || "") && !e.closest(skip));
   }
   function markBanner() {
+    if (W.bannerUnsafe) return;
     for (const btn of $$(BANNER_BTN)) markFrom(btn);
     for (const leaf of bannerTextLeaves()) markFrom(leaf);
+    // Jaring pengaman: kalau setelah disembunyikan halaman jadi kosong, batalkan semua dan matikan deteksi sampai muat ulang.
+    if (html().dataset.wadeskHideBanner === "1" && $$('[data-wadesk-banner="1"]').length &&
+        (document.body.innerText || "").trim().length < 20) {
+      for (const e of $$('[data-wadesk-banner="1"]')) delete e.dataset.wadeskBanner;
+      W.bannerUnsafe = true;
+      console.warn("wadesk: sembunyikan banner dibatalkan, halaman jadi kosong");
+    }
   }
 
   // Ringkasan struktur DOM untuk diagnosis selector (ditulis native ke debug-dom.txt).
@@ -350,7 +364,7 @@ private let tweaksScriptBody = #"""
     return { paneSide: !!$('#pane-side'), main: !!$('#main'), rows: rows().length,
              rowsByRole: $$('#pane-side [role="listitem"], #pane-side [role="row"]').length, rowsByTranslate: $$('#pane-side [style*="translateY"]').length,
              headerTitle: (() => { const h = headerTitleEl(); return h ? headerTitle(h) : null; })(),
-             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, bannerText: bannerTextLeaves(true).length, hovered: !!W.hovered,
+             messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, bannerText: bannerTextLeaves(true).length, bannerUnsafe: W.bannerUnsafe, hovered: !!W.hovered,
              banner: $$('[data-wadesk-banner="1"]').map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className || "").trim().split(/\s+/).slice(0, 2).join(".")) };
   }
 

@@ -140,7 +140,8 @@ tetap berlaku setelah app di-restart.
   menampilkan `pane:✓ main:✓ rows:N …`; ✗ atau `rows:0` berarti selector perlu diperbarui. Ringkasan DOM
   ditulis ke `~/Library/Application Support/wa-desk/debug-dom.txt`; lampirkan di issue.
 - **Icon WA Desk tidak muncul di bilah kiri**: WhatsApp belum login (icon hanya ada setelah bilah navigasi tampil), atau struktur bilah berubah; jalankan Debug Selector dan lampirkan `debug-dom.txt`.
-- **Window kosong**: offline saat launch, tekan ⌘R.
+- **Window kosong**: offline saat launch, tekan ⌘R. Di versi sebelum 0.5.2, halaman QR/login bisa ikut tersembunyi oleh
+  "Sembunyikan Banner Download" (WhatsApp mengubah tata letak login); matikan sementara di Tweaks atau `brew upgrade wa-desk`.
 - **Notifikasi tidak muncul**: cek System Settings → Notifications → WA Desk, dan apakah Senyap aktif
   (judul menu "Senyap ●").
 - **Mulai dari nol**: ⌘Q, lalu hapus `~/Library/WebKit/dev.zen.wa`, `~/Library/Application Support/wa-desk`,
