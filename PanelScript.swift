@@ -51,6 +51,7 @@ let panelScript = #"""
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const post = (msg) => { try { window.webkit.messageHandlers.wadesk.postMessage(msg); } catch (e) {} };
   const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const safeColor = (c) => /^#[0-9a-f]{3,8}$/i.test(String(c || "")) ? String(c) : "";
   const ICON = '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5A2.5 2.5 0 0 1 6.5 4h11A2.5 2.5 0 0 1 20 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9l-4.2 3.2V6.5z"/><path d="M8 9h8M8 12.5h5"/></svg>';
 
   function navSection() { return $('[data-testid="navbar-primary-section"]'); }
@@ -65,21 +66,29 @@ let panelScript = #"""
   }
   function ensureNavIcon() {
     const sec = navSection();
-    if (!sec || $('[data-wadesk-nav="1"]', sec)) return;
+    if (!sec) return;
+    const existing = $('[data-wadesk-nav="1"]', sec);
     const meta = metaAIItem(sec);
-    let item;
+    if (existing && !(existing.classList.contains("wadesk-nav-fallback") && meta)) return;
+    if (existing) existing.remove();   // fallback → ganti dengan klon sekarang Meta AI ada
+    let item = null;
     if (meta) {
       // Klon item Meta AI: class WhatsApp ikut (hover/active sama), listener tidak ikut; atribut identitas dibersihkan.
-      item = meta.cloneNode(true);
-      for (const el of [item, ...$$("*", item)]) {
-        for (const a of Array.from(el.attributes)) {
-          if (/^(id|data-testid|data-navbar-item|aria-label|aria-selected|aria-pressed|title|tabindex)$/i.test(a.name)) el.removeAttribute(a.name);
+      const clone = meta.cloneNode(true);
+      // Kalau "item" ternyata pembungkus seluruh bilah (lebih dari satu ikon), jangan dipakai.
+      if (clone.querySelectorAll("svg").length <= 1 && clone.querySelectorAll('button, [role="button"]').length <= 1) {
+        for (const el of [clone, ...$$("*", clone)]) {
+          for (const a of Array.from(el.attributes)) {
+            if (/^(id|data-testid|data-navbar-item|aria-label|aria-selected|aria-pressed|aria-current|title|tabindex)$/i.test(a.name)) el.removeAttribute(a.name);
+          }
         }
+        const svg = clone.querySelector("svg");
+        (svg ? svg.parentElement : clone).innerHTML = ICON;
+        meta.insertAdjacentElement("afterend", clone);
+        item = clone;
       }
-      const svg = item.querySelector("svg");
-      (svg ? svg.parentElement : item).innerHTML = ICON;
-      meta.insertAdjacentElement("afterend", item);
-    } else {
+    }
+    if (!item) {
       item = document.createElement("div");
       item.className = "wadesk-nav-fallback";
       item.innerHTML = ICON;
@@ -88,16 +97,25 @@ let panelScript = #"""
     item.dataset.wadeskNav = "1";
     item.setAttribute("role", "button");
     item.setAttribute("aria-label", "WA Desk");
+    item.setAttribute("aria-expanded", "false");
     item.setAttribute("title", "WA Desk");
     item.tabIndex = 0;
     item.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); toggle(); }, true);
     item.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
   }
 
+  function luminance(el) {
+    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/.exec(getComputedStyle(el).backgroundColor || "");
+    if (!m || (m[4] !== undefined && Number(m[4]) === 0)) return null;   // transparan → tidak ada info
+    return (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255;
+  }
   function isDark() {
-    const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(getComputedStyle(document.body).backgroundColor || "");
-    if (!m) return matchMedia("(prefers-color-scheme: dark)").matches;
-    return (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 < 0.5;
+    if (document.body.classList.contains("dark") || document.documentElement.classList.contains("dark")) return true;
+    for (const el of [document.body, document.getElementById("app"), document.documentElement]) {
+      const l = el ? luminance(el) : null;
+      if (l !== null) return l < 0.5;
+    }
+    return matchMedia("(prefers-color-scheme: dark)").matches;
   }
   function ensurePanel() {
     let p = document.getElementById("wadesk-panel");
@@ -117,7 +135,8 @@ let panelScript = #"""
     const sec = navSection();
     const r = (sec || icon || document.body).getBoundingClientRect();
     const ir = icon ? icon.getBoundingClientRect() : r;
-    p.style.left = Math.round(r.right + 8) + "px";
+    const left = Math.min(Math.round(r.right + 8), Math.max(8, window.innerWidth - p.offsetWidth - 8));
+    p.style.left = left + "px";
     const maxTop = Math.max(8, window.innerHeight - p.offsetHeight - 8);
     p.style.top = Math.round(Math.min(Math.max(8, ir.top), maxTop)) + "px";
   }
@@ -133,9 +152,9 @@ let panelScript = #"""
       (a.unread ? '<span class="wd-badge">' + esc(a.unread) + "</span>" : "") +
       '<button class="wd-mini" data-act="renameAccount" data-id="' + esc(a.id) + '" title="Ganti nama">✎</button></div>').join("");
     const tags = (s.tags || []).map(t =>
-      '<label class="wd-row wd-tag"><input type="checkbox" data-act="toggleTag" data-tag="' + esc(t.name) + '"' + (t.checked ? " checked" : "") + (s.hasOpenChat ? "" : " disabled") + '><span class="wd-swatch" style="background:' + esc(t.color) + '"></span>' + esc(t.name) + "</label>").join("");
+      '<label class="wd-row wd-tag"><input type="checkbox" data-act="toggleTag" data-tag="' + esc(t.name) + '"' + (t.checked ? " checked" : "") + (s.hasOpenChat ? "" : " disabled") + '><span class="wd-swatch" style="background:' + safeColor(t.color) + '"></span>' + esc(t.name) + "</label>").join("");
     const chips = ['<button class="wd-chip' + (s.filter ? "" : " on") + '" data-act="setFilter" data-color="">Semua</button>']
-      .concat((s.tags || []).map(t => '<button class="wd-chip' + (s.filter === t.color ? " on" : "") + '" data-act="setFilter" data-color="' + esc(t.color) + '" style="--c:' + esc(t.color) + '">' + esc(t.name) + "</button>")).join("");
+      .concat((s.tags || []).map(t => '<button class="wd-chip' + (s.filter === t.color ? " on" : "") + '" data-act="setFilter" data-color="' + safeColor(t.color) + '" style="--c:' + safeColor(t.color) + '">' + esc(t.name) + "</button>")).join("");
     const mute = s.mute || {}, dnd = s.dnd || {};
     const muteStatus = mute.active ? '<span class="wd-on">● ' + esc(mute.label) + "</span>" : (dnd.active ? '<span class="wd-on">● jadwal</span>' : "");
     p.innerHTML =
@@ -183,6 +202,7 @@ let panelScript = #"""
   function toggle(force) {
     const p = ensurePanel();
     P.open = typeof force === "boolean" ? force : p.hidden;
+    const icon = $('[data-wadesk-nav="1"]'); if (icon) icon.setAttribute("aria-expanded", P.open ? "true" : "false");
     if (P.open) { render(); p.hidden = false; position(p); post({ action: "panelOpen" }); }
     else { p.hidden = true; }
   }
@@ -196,7 +216,9 @@ let panelScript = #"""
   st.id = "wadesk-panel-style";
   st.textContent = WADESK_PANEL_STYLE;
   (document.head || document.documentElement).appendChild(st);
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && P.open) toggle(false); }, true);
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && P.open) { e.preventDefault(); e.stopPropagation(); toggle(false); }
+  }, true);
   document.addEventListener("mousedown", e => {
     if (!P.open) return;
     const p = document.getElementById("wadesk-panel");
