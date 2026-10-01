@@ -4,8 +4,10 @@ import UserNotifications
 
 // MARK: - AppDelegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate {
     private(set) var accounts: [AccountWindow] = []
+    /// Dibangun ulang tiap dibuka (menuNeedsUpdate) supaya centang dan daftar tag selalu segar.
+    private let tweaksMenu = NSMenu(title: "Tweaks")
 
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
@@ -101,6 +103,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func zoomOut() { if let wv = current?.webView { wv.pageZoom = max(0.5, wv.pageZoom - 0.1) } }
     @objc func zoomReset() { current?.webView.pageZoom = 1 }
 
+    // MARK: Tweaks
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        guard menu === tweaksMenu else { return }
+        menu.removeAllItems()
+        func item(_ title: String, _ action: Selector, _ key: String = "",
+                  _ mods: NSEvent.ModifierFlags = .command, on: Bool = false) -> NSMenuItem {
+            let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            i.keyEquivalentModifierMask = mods
+            i.state = on ? .on : .off
+            return i
+        }
+        menu.addItem(item("Blur Privasi", #selector(toggleBlur), "B", [.command, .shift], on: TweakSettings.blur))
+        menu.addItem(item("Sembunyikan Banner Download", #selector(toggleHideBanner), on: TweakSettings.hideBanner))
+        menu.addItem(.separator())
+        menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
+        menu.addItem(item("Debug Selector", #selector(debugSelectors)))
+    }
+
+    /// Panggil fungsi __wadesk di semua akun.
+    func broadcast(_ fn: String, _ args: KeyValuePairs<String, Any>) {
+        accounts.forEach { $0.tweak(fn, args) }
+    }
+
+    @objc func toggleBlur() {
+        TweakSettings.blur.toggle()
+        broadcast("setBlur", ["on": TweakSettings.blur])
+    }
+
+    @objc func toggleHideBanner() {
+        TweakSettings.hideBanner.toggle()
+        broadcast("setHideBanner", ["on": TweakSettings.hideBanner])
+    }
+
+    @objc func reloadCustomCSS() {
+        guard let css = customCSS() else {
+            current?.tweak("toast", ["msg": "Tidak ada ~/.config/wa-desk/custom.css"])
+            return
+        }
+        broadcast("setCustomCSS", ["css": css])
+    }
+
+    @objc func debugSelectors() {
+        guard let acc = current else { return }
+        acc.tweak("debug") { v in
+            let d = v as? [String: Any] ?? [:]
+            FileHandle.standardError.write(Data("wadesk debug: \(d)\n".utf8))
+            let ok: (String) -> String = { (d[$0] as? Bool ?? false) ? "✓" : "✗" }
+            acc.tweak("toast", ["msg": "pane:\(ok("paneSide")) main:\(ok("main")) rows:\(d["rows"] ?? 0) msgs:\(d["messages"] ?? 0) banner:\(d["bannerButtons"] ?? 0)"])
+        }
+    }
+
     @objc func newAccount() { open(id: Accounts.add()) }
 
     /// Tombol "+" di tab bar macOS memanggil ini lewat responder chain.
@@ -183,6 +237,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             item("Zoom Out", #selector(zoomOut), "-"),
             item("Actual Size", #selector(zoomReset), "0"),
         ])
+        tweaksMenu.delegate = self
+        tweaksMenu.autoenablesItems = false
+        let tweaksHolder = NSMenuItem()
+        tweaksHolder.submenu = tweaksMenu
+        main.addItem(tweaksHolder)
         // AppKit otomatis menambah Show Next/Previous Tab, Merge All Windows di sini.
         NSApp.windowsMenu = menu("Window", [
             item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"),

@@ -9,9 +9,13 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     let webView: WKWebView
     private(set) var unread = 0
     private var titleObservation: NSKeyValueObservation?
+    let store: TweakStore
+    /// Warna tag yang sedang difilter di akun ini ("" = semua). Sesi saja.
+    var tagFilter = ""
 
     init(id: String) {
         self.id = id
+        store = TweakStore(accountID: id)
         let cfg = WKWebViewConfiguration()
         // Data store per akun: cookie, IndexedDB, dan sesi login terisolasi.
         cfg.websiteDataStore = WKWebsiteDataStore(forIdentifier: UUID(uuidString: id)!)
@@ -20,6 +24,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         cfg.preferences.isElementFullscreenEnabled = true
         cfg.userContentController.addUserScript(WKUserScript(
             source: notificationShim, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        cfg.userContentController.addUserScript(WKUserScript(
+            source: tweaksScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.allowsMagnification = true
 
@@ -51,6 +57,32 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         webView.load(URLRequest(url: waHome))
     }
 
+    /// Panggil `__wadesk.<fn>(...)` dengan argumen terstruktur (callAsyncJavaScript), tanpa interpolasi string.
+    /// `args` urut sesuai parameter fungsi JS. Hasil `undefined` → nil.
+    func tweak(_ fn: String, _ args: KeyValuePairs<String, Any> = [:], completion: ((Any?) -> Void)? = nil) {
+        let call = "return await __wadesk.\(fn)(\(args.map(\.key).joined(separator: ", ")))"
+        let dict = Dictionary(uniqueKeysWithValues: args.map { ($0.key, $0.value) })
+        webView.callAsyncJavaScript(call, arguments: dict, in: nil, in: .page) { result in
+            switch result {
+            case .success(let v): completion?(v is NSNull ? nil : v)
+            case .failure(let e):
+                FileHandle.standardError.write(Data("tweak \(fn): \(e.localizedDescription)\n".utf8))
+                completion?(nil)
+            }
+        }
+    }
+
+    /// Dorong semua setting Tweaks ke halaman. Dipanggil tiap halaman selesai dimuat dan saat setting berubah.
+    func applyTweaks() {
+        tweak("setBlur", ["on": TweakSettings.blur])
+        tweak("setHideBanner", ["on": TweakSettings.hideBanner])
+        if let css = customCSS() { tweak("setCustomCSS", ["css": css]) }
+        pushTags()
+        tweak("setFilter", ["color": tagFilter])
+    }
+
+    func pushTags() { tweak("setTags", ["map": tagMap(store.tags)]) }
+
     required init?(coder: NSCoder) { fatalError("tidak dipakai") }
 
     deinit { titleObservation?.invalidate() }
@@ -66,6 +98,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
 // MARK: - Navigasi, download, media
 
 extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { applyTweaks() }
+
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if action.shouldPerformDownload { return decisionHandler(.download) }

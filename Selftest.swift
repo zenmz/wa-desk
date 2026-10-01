@@ -1,4 +1,5 @@
 import Foundation
+import JavaScriptCore
 
 // MARK: - Selftest
 
@@ -93,6 +94,15 @@ func selftest() -> Int32 {
         .filter { $0.hasPrefix("tags.json.bak-") }
     check(s3.tags == TagData() && baks.count == 1, "store korup → .bak + kosong")
     try? FileManager.default.removeItem(at: tmp)
+
+    // Skrip inject harus valid dan mendefinisikan API, juga tanpa DOM (JSContext murni).
+    let ctx = JSContext()!
+    ctx.exceptionHandler = { _, e in failed.append("JS exception: \(e?.toString() ?? "?")") }
+    ctx.evaluateScript(tweaksScript)
+    check(ctx.evaluateScript("typeof __wadesk.capture")?.toString() == "function", "JS __wadesk.capture")
+    check(ctx.evaluateScript("typeof __wadesk.openChat")?.toString() == "function", "JS __wadesk.openChat")
+    check(ctx.evaluateScript("typeof __wadesk.setTags")?.toString() == "function", "JS __wadesk.setTags")
+    check(ctx.evaluateScript("typeof __wadesk.debug")?.toString() == "function", "JS __wadesk.debug")
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1
