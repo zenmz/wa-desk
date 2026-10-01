@@ -1,4 +1,4 @@
-# wa-desk
+# WA Desk
 
 Client WhatsApp Desktop ringan untuk macOS 14+. Satu `WKWebView` (WebKit sistem)
 per akun di atas web.whatsapp.com, tanpa Electron, tanpa dependency.
@@ -7,7 +7,7 @@ Notifikasi native, badge Dock, download ke ~/Downloads, call, multi-akun sebagai
 ## Install (Homebrew)
 
     brew install zenmz/tap/wa-desk
-    ln -sfn "$(brew --prefix)/opt/wa-desk/wa-desk.app" /Applications/wa-desk.app
+    ln -sfn "$(brew --prefix)/opt/wa-desk/WA Desk.app" "/Applications/WA Desk.app"
 
 Formula build dari source saat install (~10 detik, butuh Command Line Tools),
 jadi tidak ada masalah Gatekeeper. Update: `brew upgrade wa-desk`.
@@ -17,10 +17,10 @@ Versi terbaru dari `main`: `brew install --HEAD zenmz/tap/wa-desk`.
 
 Butuh Command Line Tools (`xcode-select --install`). Tidak butuh Xcode.app.
 
-    ./build.sh && open wa-desk.app
+    ./build.sh && open "WA Desk.app"
 
 `build.sh` mengompilasi `main.swift`, menggambar icon dari `icon/make-icon.swift`
-(CoreGraphics → `sips` → `iconutil`), membungkus `wa-desk.app`, codesign ad-hoc,
+(CoreGraphics → `sips` → `iconutil`), membungkus `WA Desk.app`, codesign ad-hoc,
 lalu menjalankan `wa-desk --selftest` (fungsi murni: parsing badge, filter akun,
 nama file download, aturan link luar, aturan notifikasi).
 
@@ -65,9 +65,9 @@ Jalankan setelah login; centang yang lulus.
 
 ## Ukuran
 
-Angka wa-desk diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah login.
+Angka WA Desk diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah login.
 
 | App | RAM | Storage |
 |---|---|---|
-| wa-desk (halaman QR, 1 akun) | 55.5 MB | app 1.1M (icon 880K), data 41M |
+| WA Desk (halaman QR, 1 akun) | 55.5 MB | app 1.1M (icon 880K), data 41M |
 | WhatsApp resmi (sisa container) | belum diukur (app tidak terpasang) | 161M + 409M (Containers + Group Containers) |

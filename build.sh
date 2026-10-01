@@ -1,8 +1,8 @@
 #!/bin/sh
-# Build wa-desk.app dengan swiftc (Command Line Tools), lalu jalankan selftest.
+# Build "WA Desk.app" dengan swiftc (Command Line Tools), lalu jalankan selftest.
 set -eu
 cd "$(dirname "$0")"
-APP=wa-desk.app
+APP="WA Desk.app"
 TARGET="$(uname -m)-apple-macos14.0"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
