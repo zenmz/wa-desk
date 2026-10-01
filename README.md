@@ -110,7 +110,8 @@ git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
 | CSS kustom | `~/.config/wa-desk/custom.css` lalu Tweaks → Muat Ulang CSS Kustom | ubah tampilan WhatsApp Web sesuka hati |
 | Debug Selector | Tweaks → Debug Selector | toast jumlah elemen yang dikenali + tulis `debug-dom.txt` (lihat Troubleshooting) |
 
-Senyap hanya menahan banner notifikasi; badge Dock tetap berjalan. Senyap sementara tersimpan dan
+Senyap menahan banner notifikasi dan memblokir suara notifikasi yang diputar WhatsApp Web di dalam halaman
+(voice note/video yang kamu klik tetap bersuara); badge Dock tetap berjalan. Senyap sementara tersimpan dan
 tetap berlaku setelah app di-restart.
 
 ## Privasi & keamanan

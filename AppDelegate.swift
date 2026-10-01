@@ -15,6 +15,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
         GlobalHotkey.register { [weak self] in self?.toggleVisibility() }
+        // Senyap berbasis waktu (jadwal, kedaluwarsa): periksa tiap 30 detik.
+        Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in self?.pushSilence() }
         // WKWebView menelan ⌃Tab/⌃⇧Tab sebelum sampai ke menu; tangkap lebih dulu di tingkat app.
         NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
             let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
@@ -63,6 +65,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Akun yang panel bookmark-nya key; kalau tidak, akun yang sedang tampil.
     var current: Account? {
         accounts.first { $0.owns(NSApp.keyWindow) } ?? mainWindow.active ?? accounts.first
+    }
+
+    /// Senyap sedang berlaku (jadwal atau sementara): banner native ditahan dan audio skrip halaman diblokir.
+    var silenced: Bool {
+        let now = Date()
+        return dndActive(minutesNow: minutesOfDay(now), start: TweakSettings.dndStart,
+                         end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled)
+            || muteActive(now: now, until: TweakSettings.muteUntil)
+    }
+    private var lastSilenced = false
+
+    /// Dorong status senyap ke semua halaman; panel ikut diperbarui kalau status berubah (mis. senyap kedaluwarsa).
+    func pushSilence() {
+        let on = silenced
+        broadcast("setSilence", ["on": on])
+        if on != lastSilenced {
+            lastSilenced = on
+            pushPanelState()
+        }
     }
 
     func refreshBadge() {
@@ -354,6 +375,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc func toggleDND() {
         TweakSettings.dndEnabled.toggle()
+        pushSilence()
         pushPanelState()
     }
 
@@ -374,12 +396,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let until: Date = minutes == 0 ? .distantFuture : Date().addingTimeInterval(TimeInterval(minutes * 60))
         TweakSettings.muteUntil = until
         current?.tweak("toast", ["msg": "Senyap \(muteUntilLabel(until))"])
+        pushSilence()
         pushPanelState()
     }
 
     @objc func muteOff() {
         TweakSettings.muteUntil = nil
         current?.tweak("toast", ["msg": "Senyap dimatikan"])
+        pushSilence()
         pushPanelState()
     }
 
@@ -413,6 +437,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         TweakSettings.dndEnd = hhmm(fromMinutes: minutesOfDay(end.dateValue))
         TweakSettings.dndEnabled = true
         current?.tweak("toast", ["msg": "Jadwal senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd) aktif"])
+        pushSilence()
         pushPanelState()
     }
 

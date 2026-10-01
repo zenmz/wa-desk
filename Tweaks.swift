@@ -164,7 +164,7 @@ private let tweaksScriptBody = #"""
   const root = typeof window !== "undefined" ? window : globalThis;
   if (root.__wadesk) return;
   const hasDOM = typeof document !== "undefined";
-  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: null, bannerUnsafe: false };
+  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: null, bannerUnsafe: false, silence: false };
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
@@ -368,6 +368,25 @@ private let tweaksScriptBody = #"""
              banner: $$('[data-wadesk-banner="1"]').map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className || "").trim().split(/\s+/).slice(0, 2).join(".")) };
   }
 
+  // Senyap: audio yang diputar skrip (suara notifikasi WhatsApp) diblokir; audio yang dipicu klik user
+  // (voice note, video) tetap jalan karena navigator.userActivation.isActive true sesaat setelah klik.
+  function userActive() { const ua = navigator.userActivation; return ua ? ua.isActive : false; }
+  function setSilence(on) { W.silence = !!on; html().dataset.wadeskSilence = on ? "1" : ""; }
+  function installSilence() {
+    const origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function (...a) {
+      if (W.silence && !userActive()) { try { this.pause(); } catch (e) {} return Promise.resolve(); }
+      return origPlay.apply(this, a);
+    };
+    if (typeof AudioBufferSourceNode !== "undefined") {
+      const origStart = AudioBufferSourceNode.prototype.start;
+      AudioBufferSourceNode.prototype.start = function (...a) {
+        if (W.silence && !userActive()) return;
+        return origStart.apply(this, a);
+      };
+    }
+  }
+
   function safe(fn, fallback) { return (...a) => { try { return fn(...a); } catch (e) { console.warn("wadesk", fn.name, e); return fallback; } }; }
 
   root.__wadesk = {
@@ -383,10 +402,12 @@ private let tweaksScriptBody = #"""
     setBlur: safe(on => { html().dataset.wadeskBlur = on ? "1" : ""; }, undefined),
     setHideBanner: safe(on => { html().dataset.wadeskHideBanner = on ? "1" : ""; markBanner(); }, undefined),
     setCustomCSS: safe(css => { ensureStyle("wadesk-custom", css || ""); }, undefined),
+    setSilence: safe(setSilence, undefined),
   };
 
   if (!hasDOM) return;
   ensureStyle("wadesk", WADESK_STYLE);
+  try { installSilence(); } catch (e) { console.warn("wadesk silence", e); }
   document.addEventListener("mouseover", e => {
     const m = e.target && e.target.closest && e.target.closest('#main div[data-id]');
     if (m) W.hovered = m;

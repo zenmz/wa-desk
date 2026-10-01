@@ -93,6 +93,7 @@ final class Account: NSObject {
         if let css = customCSS() { tweak("setCustomCSS", ["css": css]) }
         pushTags()
         tweak("setFilter", ["color": tagFilter])
+        tweak("setSilence", ["on": delegate?.silenced ?? false])
         delegate?.pushPanelState(to: self)
     }
 
