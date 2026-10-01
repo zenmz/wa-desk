@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Carbon.HIToolbox
 
@@ -150,7 +151,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   const root = typeof window !== "undefined" ? window : globalThis;
   if (root.__wadesk) return;
   const hasDOM = typeof document !== "undefined";
-  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0 };
+  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: "" };
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
@@ -285,7 +286,14 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   new MutationObserver(() => {
     if (pending) return;
     pending = true;
-    setTimeout(() => { pending = false; markBanner(); applyTags(); }, 250);
+    setTimeout(() => {
+      pending = false; markBanner(); applyTags();
+      const cc = currentChat(); const t = cc ? cc.title : "";
+      if (t !== W.lastChat) {
+        W.lastChat = t;
+        try { window.webkit.messageHandlers.wadesk.postMessage({ chat: t }); } catch (e) {}
+      }
+    }, 250);
   }).observe(document.documentElement, { childList: true, subtree: true });
   markBanner();
   applyTags();
@@ -312,5 +320,23 @@ enum GlobalHotkey {
         if status != noErr {
             FileHandle.standardError.write(Data("hotkey ⌥⌘W gagal didaftar: \(status)\n".utf8))
         }
+    }
+}
+
+// MARK: - Warna tag untuk menu
+
+func nsColor(hex: String) -> NSColor {
+    var v: UInt64 = 0
+    Scanner(string: String(hex.dropFirst())).scanHexInt64(&v)
+    return NSColor(red: CGFloat((v >> 16) & 0xFF) / 255, green: CGFloat((v >> 8) & 0xFF) / 255,
+                   blue: CGFloat(v & 0xFF) / 255, alpha: 1)
+}
+
+/// Lingkaran warna 14×14 untuk item menu.
+func swatch(_ hex: String) -> NSImage {
+    NSImage(size: NSSize(width: 14, height: 14), flipped: false) { rect in
+        nsColor(hex: hex).setFill()
+        NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+        return true
     }
 }

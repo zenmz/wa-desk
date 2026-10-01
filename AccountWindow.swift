@@ -13,6 +13,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     /// Warna tag yang sedang difilter di akun ini ("" = semua). Sesi saja.
     var tagFilter = ""
     private var bookmarksPanel: BookmarksPanel?
+    /// Judul chat yang sedang terbuka, dilaporkan JS lewat handler "wadesk". nil = tidak ada chat.
+    private(set) var openChatTitle: String?
 
     init(id: String) {
         self.id = id
@@ -36,6 +38,7 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
             backing: .buffered, defer: false)
         super.init(window: win)
         webView.configuration.userContentController.add(self, name: "notify")
+        webView.configuration.userContentController.add(self, name: "wadesk")
 
         win.title = "WhatsApp"
         win.isReleasedWhenClosed = false
@@ -220,8 +223,13 @@ extension AccountWindow: WKScriptMessageHandler {
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.host == "web.whatsapp.com",
-              let body = message.body as? [String: Any],
-              let nid = body["id"] as? String, Int(nid) != nil else { return }
+              let body = message.body as? [String: Any] else { return }
+        if message.name == "wadesk" {
+            let title = body["chat"] as? String ?? ""
+            openChatTitle = title.isEmpty ? nil : title
+            return
+        }
+        guard let nid = body["id"] as? String, Int(nid) != nil else { return }
         guard shouldNotify(appActive: NSApp.isActive, windowKey: window?.isKeyWindow ?? false) else { return }
         // Jadwal senyap hanya menahan banner; badge Dock tetap diperbarui lewat judul halaman.
         guard !dndActive(minutesNow: minutesOfDay(Date()), start: TweakSettings.dndStart,

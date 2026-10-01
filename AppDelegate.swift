@@ -122,6 +122,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(item("Bookmark Pesan", #selector(bookmarkMessage), "d"))
         menu.addItem(item("Tampilkan Bookmark…", #selector(showBookmarks), "D", [.command, .shift]))
         menu.addItem(.separator())
+        let acc = current
+        let tags = acc?.store.tags.tags ?? []
+        let openChat = acc?.openChatTitle
+
+        let tagMenu = NSMenu(title: "Tag Chat Ini")
+        tagMenu.autoenablesItems = false
+        for tag in tags {
+            let i = item(tag.name, #selector(toggleTag(_:)),
+                         on: openChat.flatMap { acc?.store.tags.chats[$0]?.contains(tag.name) } ?? false)
+            i.image = swatch(tag.color)
+            i.representedObject = tag.name
+            i.isEnabled = openChat != nil
+            tagMenu.addItem(i)
+        }
+        if !tags.isEmpty { tagMenu.addItem(.separator()) }
+        tagMenu.addItem(item("Tag Baru…", #selector(newTag)))
+        let deleteMenu = NSMenu(title: "Hapus Tag")
+        deleteMenu.autoenablesItems = false
+        for tag in tags {
+            let i = item(tag.name, #selector(deleteTag(_:)))
+            i.image = swatch(tag.color)
+            i.representedObject = tag.name
+            deleteMenu.addItem(i)
+        }
+        let deleteHolder = NSMenuItem(title: "Hapus Tag", action: nil, keyEquivalent: "")
+        deleteHolder.submenu = deleteMenu
+        deleteHolder.isEnabled = !tags.isEmpty
+        tagMenu.addItem(deleteHolder)
+        let tagHolder = NSMenuItem(title: "Tag Chat Ini", action: nil, keyEquivalent: "")
+        tagHolder.submenu = tagMenu
+        menu.addItem(tagHolder)
+
+        let filterMenu = NSMenu(title: "Filter Tag")
+        filterMenu.autoenablesItems = false
+        let all = item("Semua", #selector(setTagFilter(_:)), on: (acc?.tagFilter ?? "").isEmpty)
+        all.representedObject = ""
+        filterMenu.addItem(all)
+        for tag in tags {
+            let i = item(tag.name, #selector(setTagFilter(_:)), on: acc?.tagFilter == tag.color)
+            i.image = swatch(tag.color)
+            i.representedObject = tag.color
+            filterMenu.addItem(i)
+        }
+        let filterHolder = NSMenuItem(title: "Filter Tag", action: nil, keyEquivalent: "")
+        filterHolder.submenu = filterMenu
+        menu.addItem(filterHolder)
+        menu.addItem(.separator())
         menu.addItem(item("Jadwal Senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd)",
                           #selector(toggleDND), on: TweakSettings.dndEnabled))
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
@@ -204,6 +251,86 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     @objc func showBookmarks() { current?.showBookmarksPanel() }
 
+    // MARK: Tag
+
+    @objc func toggleTag(_ sender: NSMenuItem) {
+        guard let acc = current, let chat = acc.openChatTitle, let name = sender.representedObject as? String else { return }
+        acc.store.update { data in
+            var names = data.chats[chat] ?? []
+            if let i = names.firstIndex(of: name) { names.remove(at: i) } else { names.append(name) }
+            data.chats[chat] = names.isEmpty ? nil : names
+        }
+        acc.pushTags()
+    }
+
+    @objc func newTag() {
+        guard let acc = current else { return }
+        let alert = NSAlert()
+        alert.messageText = "Tag baru"
+        alert.informativeText = acc.openChatTitle == nil
+            ? "Nama tag dan warnanya."
+            : "Nama tag dan warnanya. Tag langsung dipasang ke chat yang terbuka."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.placeholderString = "mis. Kerja"
+        let colors = NSPopUpButton(frame: NSRect(x: 0, y: 0, width: 220, height: 26))
+        for hex in tagPalette {
+            colors.addItem(withTitle: hex)
+            colors.lastItem?.image = swatch(hex)
+        }
+        let stack = NSStackView(views: [field, colors])
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.frame = NSRect(x: 0, y: 0, width: 220, height: 58)
+        alert.accessoryView = stack
+        alert.addButton(withTitle: "Buat")
+        alert.addButton(withTitle: "Batal")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+        guard tagNameValid(name), !acc.store.tags.tags.contains(where: { $0.name == name }) else {
+            NSSound.beep()
+            acc.tweak("toast", ["msg": "Nama tag kosong, >24 karakter, atau sudah ada"])
+            return
+        }
+        let color = tagPalette[max(0, colors.indexOfSelectedItem)]
+        acc.store.update { data in
+            data.tags.append(Tag(name: name, color: color))
+            if let chat = acc.openChatTitle { data.chats[chat, default: []].append(name) }
+        }
+        acc.pushTags()
+    }
+
+    @objc func deleteTag(_ sender: NSMenuItem) {
+        guard let acc = current, let name = sender.representedObject as? String else { return }
+        let alert = NSAlert()
+        alert.messageText = "Hapus tag “\(name)”?"
+        alert.informativeText = "Tag dilepas dari semua chat."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Hapus")
+        alert.addButton(withTitle: "Batal")
+        alert.buttons[0].hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let removedColor = acc.store.tags.tags.first { $0.name == name }?.color
+        acc.store.update { data in
+            data.tags.removeAll { $0.name == name }
+            for (chat, names) in data.chats {
+                let kept = names.filter { $0 != name }
+                data.chats[chat] = kept.isEmpty ? nil : kept
+            }
+        }
+        if acc.tagFilter == removedColor, !acc.store.tags.tags.contains(where: { $0.color == removedColor }) {
+            acc.tagFilter = ""
+            acc.tweak("setFilter", ["color": ""])
+        }
+        acc.pushTags()
+    }
+
+    @objc func setTagFilter(_ sender: NSMenuItem) {
+        guard let acc = current else { return }
+        acc.tagFilter = sender.representedObject as? String ?? ""
+        acc.tweak("setFilter", ["color": acc.tagFilter])
+    }
+
     @objc func newAccount() { open(id: Accounts.add()) }
 
     /// Tombol "+" di tab bar macOS memanggil ini lewat responder chain.
@@ -227,6 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let id = account.id
         account.webView.stopLoading()
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
+        account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "wadesk")
         win.contentView = nil
         win.close()
         NSWindow.removeFrame(usingName: "win-\(id)")
