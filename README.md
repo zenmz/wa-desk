@@ -36,6 +36,28 @@ Data per akun disimpan WebKit per UUID, biasanya di `~/Library/WebKit/dev.zen.wa
 (kalau tidak ada: `find ~/Library -maxdepth 3 -name 'dev.zen.wa*'`).
 Daftar akun di `defaults read dev.zen.wa accounts`.
 
+## Tweaks
+
+Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di Mac ini.
+
+- **Blur Privasi** (⇧⌘B): daftar chat dan pesan dikaburkan, jelas saat kursor di atasnya.
+- **Sembunyikan Banner Download**: banner "Download WhatsApp for Mac" disembunyikan (default aktif).
+- **Bookmark Pesan** (⌘D): arahkan kursor ke pesan, tekan ⌘D. **Tampilkan Bookmark…** (⇧⌘D) membuka
+  panel; Return/dobel-klik membuka chat dan melompat ke pesan (kalau pesannya sudah dimuat), ⌫ menghapus.
+  Pengganti pin: batas pin ditegakkan server WhatsApp dan tidak bisa dinaikkan.
+- **Tag Chat Ini**: beri tag (nama + warna) ke chat yang terbuka; titik warna muncul di daftar chat.
+  **Filter Tag** meredupkan chat lain. Tag dicocokkan dengan judul chat: mengganti nama kontak melepas tag.
+- **Jadwal Senyap**: notifikasi ditahan pada jam yang ditentukan; badge tetap. Jam diubah lewat
+  `defaults write dev.zen.wa dndStart 23:30` dan `defaults write dev.zen.wa dndEnd 06:00` (format HH:mm,
+  boleh lewat tengah malam), lalu nyalakan di menu.
+- **Muat Ulang CSS Kustom**: `~/.config/wa-desk/custom.css` disuntik ke halaman; ubah apa pun lewat CSS.
+- **Debug Selector**: cetak jumlah elemen WhatsApp yang dikenali ke stderr dan toast. Kalau ada ✗,
+  struktur WhatsApp Web berubah dan selector di `Tweaks.swift` perlu diperbarui.
+- Window → **Selalu di Atas** (⌥⌘T). Hotkey global **⌥⌘W** menampilkan/menyembunyikan app dari mana saja.
+
+Data bookmark dan tag ada di `~/Library/Application Support/wa-desk/<id akun>/` (JSON).
+Semua Tweaks hanya CSS, pembacaan DOM, dan klik sintetis setara klik user; tidak ada otomasi kirim pesan.
+
 ## Launch pertama
 
 - macOS akan minta izin notifikasi saat launch, akses folder Downloads saat download pertama, dan kamera/mic saat call pertama.
@@ -62,6 +84,15 @@ Jalankan setelah login; centang yang lulus.
 - [ ] Akun kedua (Cmd+N), pindah tab, notifikasi & badge gabungan
 - [ ] Hapus akun; hapus akun terakhir membuat akun baru
 - [ ] Cmd+Q lalu buka lagi: semua akun masih login, posisi window sama
+- [ ] Tweaks: blur ⇧⌘B on/off, jelas saat hover
+- [ ] Tweaks: banner download hilang (halaman QR dan setelah login)
+- [ ] Tweaks: ⌘D pada pesan → toast "Disimpan" → muncul di panel; Return → chat terbuka, pesan berkilat
+- [ ] Tweaks: bookmark chat yang di luar layar → toast yang sesuai
+- [ ] Tweaks: tag baru → titik warna; Filter Tag → chat lain redup; hapus tag
+- [ ] Tweaks: ⌥⌘W dari app lain; Selalu di Atas
+- [ ] Tweaks: Jadwal Senyap aktif → pesan masuk tanpa banner, badge naik
+- [ ] Tweaks: `custom.css` berisi `#pane-side{background:#111}` → Muat Ulang → terlihat
+- [ ] Tweaks: Debug Selector semua ✓
 
 ## Ukuran
 
