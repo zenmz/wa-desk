@@ -178,7 +178,7 @@ extension Account: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
         webView.load(URLRequest(url: waHome))
     }
 
-    /// target=_blank / window.open: luar → browser default; web.whatsapp.com sendiri → muat di tab ini.
+    /// target=_blank / window.open: luar → browser default; web.whatsapp.com sendiri → muat di akun ini.
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration,
                  for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
         guard let url = action.request.url else { return nil }

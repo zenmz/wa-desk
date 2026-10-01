@@ -15,6 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
         GlobalHotkey.register { [weak self] in self?.toggleVisibility() }
+        // WKWebView menelan ⌃Tab/⌃⇧Tab sebelum sampai ke menu; tangkap lebih dulu di tingkat app.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] e in
+            let mods = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard e.keyCode == 48, mods.subtracting(.shift) == .control else { return e }
+            if mods.contains(.shift) { self?.previousAccount() } else { self?.nextAccount() }
+            return nil
+        }
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         Accounts.pendingRemoval().forEach(purgeDataStore)
@@ -96,7 +103,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     /// Dorong state panel ke satu akun atau ke semua akun.
     func pushPanelState(to account: Account? = nil) {
-        for a in (account.map { [$0] } ?? accounts) { a.tweak("setPanelState", ["state": panelState(for: a)]) }
+        for a in (account.map { [$0] } ?? accounts) where a.webView.url != nil && !a.webView.isLoading {
+            a.tweak("setPanelState", ["state": panelState(for: a)])
+        }
     }
 
     /// Aksi dari panel di halaman (sudah lewat guard origin). Divalidasi panelAction(from:), lalu dipetakan ke aksi menu.
@@ -141,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     // MARK: notifikasi
 
-    /// Tampilkan banner walau app di foreground (user mungkin sedang di tab akun lain).
+    /// Tampilkan banner walau app di foreground (user mungkin sedang di akun lain).
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void) {
         handler([.banner, .list])
@@ -599,6 +608,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         alert.addButton(withTitle: "Hapus")
         alert.addButton(withTitle: "Batal")
         alert.buttons[0].hasDestructiveAction = true
+        alert.buttons[0].keyEquivalent = ""
+        alert.buttons[1].keyEquivalent = "\r"
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         let id = account.id
@@ -620,7 +631,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             self?.purgeDataStore(id)
         }
         if accounts.isEmpty { attach(id: Accounts.all()[0]) }
-        show(accounts[min(index, accounts.count - 1)])
+        // Kalau yang dihapus bukan akun yang tampil (mis. lewat panel bookmark akun lain), biarkan tampilan tetap.
+        show(mainWindow.active ?? accounts[min(index, accounts.count - 1)])
         pushPanelState()
     }
 
@@ -676,7 +688,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let tweaksHolder = NSMenuItem()
         tweaksHolder.submenu = tweaksMenu
         main.addItem(tweaksHolder)
-        // AppKit otomatis menambah Show Next/Previous Tab, Merge All Windows di sini.
+        // Menu Window: Minimize dan Selalu di Atas; tab native dimatikan (tabbingMode = .disallowed).
         NSApp.windowsMenu = menu("Window", [
             item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"),
             item("Selalu di Atas", #selector(toggleAlwaysOnTop), "t", [.command, .option]),

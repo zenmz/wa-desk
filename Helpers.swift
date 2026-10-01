@@ -118,8 +118,9 @@ func panelAction(from d: [String: Any]) -> PanelAction? {
         guard let c = d["color"] as? String, c.isEmpty || tagColorValid(c) else { return nil }
         return .setFilter(c)
     case "mute":
-        guard let m = (d["min"] as? NSNumber)?.intValue, [30, 60, 120, 0].contains(m) else { return nil }
-        return .mute(m)
+        guard let n = d["min"] as? NSNumber, CFGetTypeID(n) == CFNumberGetTypeID(),
+              n.doubleValue == Double(n.intValue), [30, 60, 120, 0].contains(n.intValue) else { return nil }
+        return .mute(n.intValue)
     case "muteOff": return .muteOff
     case "toggleDND": return .toggleDND
     case "editDND": return .editDND

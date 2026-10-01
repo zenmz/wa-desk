@@ -79,11 +79,13 @@ let panelScript = #"""
       if (clone.querySelectorAll("svg").length <= 1 && clone.querySelectorAll('button, [role="button"]').length <= 1) {
         for (const el of [clone, ...$$("*", clone)]) {
           for (const a of Array.from(el.attributes)) {
-            if (/^(id|data-testid|data-navbar-item|aria-label|aria-selected|aria-pressed|aria-current|title|tabindex)$/i.test(a.name)) el.removeAttribute(a.name);
+            if (/^(id|data-testid|data-navbar-item|data-tab|aria-label|aria-selected|aria-pressed|aria-current|title|tabindex)$/i.test(a.name)) el.removeAttribute(a.name);
           }
         }
         const svg = clone.querySelector("svg");
         (svg ? svg.parentElement : clone).innerHTML = ICON;
+        // Satu tab stop saja: elemen fokus bawaan di dalam klon dimatikan.
+        for (const f of clone.querySelectorAll('button, a, [tabindex]')) f.tabIndex = -1;
         meta.insertAdjacentElement("afterend", clone);
         item = clone;
       }

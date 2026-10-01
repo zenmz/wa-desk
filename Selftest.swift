@@ -40,7 +40,7 @@ func selftest() -> Int32 {
     check(uniqueURL(in: dir, name: "..", exists: exists).lastPathComponent == "download", "uniqueURL dotdot")
     check(uniqueURL(in: dir, name: "/", exists: exists).lastPathComponent == "download", "uniqueURL slash")
     check(shouldNotify(appActive: true, windowKey: true) == false, "shouldNotify ditekan saat dilihat")
-    check(shouldNotify(appActive: true, windowKey: false) == true, "shouldNotify tab lain")
+    check(shouldNotify(appActive: true, windowKey: false) == true, "shouldNotify akun lain")
     check(shouldNotify(appActive: false, windowKey: true) == true, "shouldNotify app background")
 
     // Jadwal senyap
@@ -127,6 +127,9 @@ func selftest() -> Int32 {
     check(panelAction(from: ["action": "mute", "min": 60]) == .mute(60), "panelAction mute 60")
     check(panelAction(from: ["action": "mute", "min": 60.0]) == .mute(60), "panelAction mute double dari JS")
     check(panelAction(from: ["action": "mute", "min": 45]) == nil, "panelAction mute 45 ditolak")
+    check(panelAction(from: ["action": "mute", "min": false]) == nil, "panelAction mute Bool ditolak")
+    check(panelAction(from: ["action": "mute", "min": 30.5]) == nil, "panelAction mute pecahan ditolak")
+    check(panelAction(from: ["action": "mute", "min": "60"]) == nil, "panelAction mute string ditolak")
     check(panelAction(from: ["action": "toggleTag", "tag": "Kerja"]) == .toggleTag("Kerja"), "panelAction tag")
     check(panelAction(from: ["action": "toggleTag", "tag": ""]) == nil, "panelAction tag kosong ditolak")
     check(panelAction(from: ["action": "setFilter", "color": ""]) == .setFilter(""), "panelAction filter semua")
@@ -134,6 +137,12 @@ func selftest() -> Int32 {
     check(panelAction(from: ["action": "setFilter", "color": "#000000"]) == nil, "panelAction filter di luar palet")
     check(panelAction(from: ["action": "formatDisk"]) == nil, "panelAction tak dikenal")
     check(panelAction(from: [:]) == nil, "panelAction kosong")
+    let noArg: [(String, PanelAction)] = [("newAccount", .newAccount), ("removeAccount", .removeAccount), ("toggleBlur", .toggleBlur),
+        ("toggleBanner", .toggleBanner), ("bookmark", .bookmark), ("showBookmarks", .showBookmarks), ("newTag", .newTag),
+        ("muteOff", .muteOff), ("toggleDND", .toggleDND), ("editDND", .editDND), ("toggleOnTop", .toggleOnTop),
+        ("reloadCSS", .reloadCSS), ("debug", .debug)]
+    for (name, expected) in noArg { check(panelAction(from: ["action": name]) == expected, "panelAction \(name)") }
+    check(panelAction(from: ["action": "renameAccount", "id": uid]) == .renameAccount(uid), "panelAction rename")
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1
