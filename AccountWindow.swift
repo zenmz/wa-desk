@@ -64,7 +64,11 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         let dict = Dictionary(uniqueKeysWithValues: args.map { ($0.key, $0.value) })
         webView.callAsyncJavaScript(call, arguments: dict, in: nil, in: .page) { result in
             switch result {
-            case .success(let v): completion?(v is NSNull ? nil : v)
+            case .success(let v):
+                // callAsyncJavaScript membungkus `undefined` sebagai Optional<Any>.none dan `null` sebagai NSNull; keduanya → nil.
+                // Lewat AnyObject: Optional.none yang terbungkus Any dijembatani ke NSNull (`v as Any?` tidak membukanya).
+                let unwrapped: Any? = (v as AnyObject) is NSNull ? nil : v
+                completion?(unwrapped)
             case .failure(let e):
                 FileHandle.standardError.write(Data("tweak \(fn): \(e.localizedDescription)\n".utf8))
                 completion?(nil)

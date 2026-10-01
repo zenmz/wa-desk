@@ -131,7 +131,6 @@ let tweaksStyle = """
 html[data-wadesk-blur="1"] #pane-side, html[data-wadesk-blur="1"] #main { filter: blur(9px); transition: filter .15s; }
 html[data-wadesk-blur="1"] #pane-side:hover, html[data-wadesk-blur="1"] #main:hover { filter: none; }
 html[data-wadesk-hide-banner="1"] [data-wadesk-banner="1"] { display: none !important; }
-#pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""]) { position: relative; }
 #pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""])::after {
   content: ""; position: absolute; right: 12px; top: 10px; width: 9px; height: 9px;
   border-radius: 50%; background: var(--wadesk-tag); pointer-events: none; }
@@ -168,7 +167,12 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
     for (const row of $$('#pane-side [role="listitem"]')) {
       const t = rowTitle(row);
       const color = (t && W.tags[t]) || "";
-      if (row.dataset.wadeskTag !== color) { row.dataset.wadeskTag = color; row.style.setProperty("--wadesk-tag", color); }
+      if (row.dataset.wadeskTag !== color) {
+        row.dataset.wadeskTag = color;
+        row.style.setProperty("--wadesk-tag", color);
+        // Jangkar untuk titik ::after: hanya kalau baris belum punya posisi sendiri (daftar WA tervirtualisasi, baris absolute).
+        if (color && getComputedStyle(row).position === "static") row.style.position = "relative";
+      }
       const match = (!W.filter || color === W.filter) ? "1" : "0";
       if (row.dataset.wadeskMatch !== match) row.dataset.wadeskMatch = match;
     }
@@ -181,7 +185,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
       let top = btn;
       for (let i = 0; i < 8; i++) {
         const p = top.parentElement;
-        if (!p || p === document.body || p.id === "app" || p.querySelector(BIG) || p.querySelectorAll(BANNER_BTN).length !== 1) break;
+        if (!p || p === document.body || p.id === "app" || p.matches(BIG) || p.querySelector(BIG) || p.querySelectorAll(BANNER_BTN).length !== 1) break;
         top = p;
       }
       if (top.dataset.wadeskBanner !== "1") top.dataset.wadeskBanner = "1";
