@@ -6,8 +6,9 @@ APP="WA Desk.app"
 TARGET="$(uname -m)-apple-macos14.0"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-swiftc -O -target "$TARGET" main.swift -o "$APP/Contents/MacOS/wa-desk" \
-  -framework Cocoa -framework WebKit -framework UserNotifications
+swiftc -O -target "$TARGET" *.swift -o "$APP/Contents/MacOS/wa-desk" \
+  -framework Cocoa -framework WebKit -framework UserNotifications \
+  -framework Carbon -framework JavaScriptCore
 
 # Icon: digambar icon/make-icon.swift → iconset → icns (sips & iconutil bawaan macOS).
 ICON_TMP=$(mktemp -d)

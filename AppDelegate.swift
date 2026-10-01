@@ -1,0 +1,194 @@
+import Cocoa
+import WebKit
+import UserNotifications
+
+// MARK: - AppDelegate
+
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    private(set) var accounts: [AccountWindow] = []
+
+    func applicationDidFinishLaunching(_ note: Notification) {
+        buildMenu()
+        UNUserNotificationCenter.current().delegate = self
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+        Accounts.pendingRemoval().forEach(purgeDataStore)
+        for id in Accounts.all() { open(id: id) }
+        NSApp.activate()
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+
+    /// Klik ikon Dock → tampilkan lagi akun yang windownya disembunyikan.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        accounts.filter { $0.window?.isVisible == false }.forEach(present)
+        return true
+    }
+
+    // MARK: akun
+
+    @discardableResult
+    func open(id: String) -> AccountWindow {
+        let account = AccountWindow(id: id)
+        accounts.append(account)
+        present(account)
+        return account
+    }
+
+    /// Tampilkan window akun. Kalau ada window akun lain yang terlihat, gabung sebagai tab.
+    func present(_ account: AccountWindow) {
+        guard let win = account.window else { return }
+        if !win.isVisible, win.tabGroup == nil,
+           let anchor = accounts.compactMap(\.window).first(where: { $0.isVisible && $0 !== win }) {
+            anchor.addTabbedWindow(win, ordered: .above)
+        }
+        win.makeKeyAndOrderFront(nil)
+        win.makeFirstResponder(account.webView)
+    }
+
+    /// Akun yang windownya sedang key; fallback akun pertama.
+    var current: AccountWindow? {
+        accounts.first { $0.window?.isKeyWindow == true } ?? accounts.first
+    }
+
+    func refreshBadge() {
+        NSApp.dockTile.badgeLabel = badgeLabel(total: accounts.reduce(0) { $0 + $1.unread })
+    }
+
+    /// Hapus data store akun yang sudah dihapus. Dipanggil saat hapus akun dan saat launch,
+    /// karena WebKit menolak menghapus store yang masih dipakai dan quit bisa keburu terjadi.
+    func purgeDataStore(_ id: String) {
+        guard let uuid = UUID(uuidString: id) else { return }
+        WKWebsiteDataStore.remove(forIdentifier: uuid) { error in
+            if let error {
+                FileHandle.standardError.write(Data("hapus data store \(id) gagal: \(error.localizedDescription)\n".utf8))
+            } else {
+                Accounts.clearPendingRemoval(id)
+            }
+        }
+    }
+
+    // MARK: notifikasi
+
+    /// Tampilkan banner walau app di foreground (user mungkin sedang di tab akun lain).
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                withCompletionHandler handler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        handler([.banner, .list])
+    }
+
+    /// Klik notifikasi → fokus akun terkait dan teruskan onclick ke WhatsApp supaya chat terbuka.
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                withCompletionHandler handler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if let accountID = info["account"] as? String,
+           let account = accounts.first(where: { $0.id == accountID }) {
+            NSApp.activate()
+            present(account)
+            if let nid = info["nid"] as? String, Int(nid) != nil {
+                account.webView.evaluateJavaScript("window.__waNotifClick('\(nid)')")
+            }
+        }
+        handler()
+    }
+
+    // MARK: menu actions
+
+    /// Reload biasa hanya kalau halaman WhatsApp sudah termuat; kalau kosong (launch offline) atau nyasar ke host lain, muat ulang dari awal.
+    @objc func reload() {
+        guard let wv = current?.webView else { return }
+        if let url = wv.url, !isExternal(url) { wv.reload() } else { wv.load(URLRequest(url: waHome)) }
+    }
+    @objc func zoomIn() { if let wv = current?.webView { wv.pageZoom = min(3, wv.pageZoom + 0.1) } }
+    @objc func zoomOut() { if let wv = current?.webView { wv.pageZoom = max(0.5, wv.pageZoom - 0.1) } }
+    @objc func zoomReset() { current?.webView.pageZoom = 1 }
+
+    @objc func newAccount() { open(id: Accounts.add()) }
+
+    /// Tombol "+" di tab bar macOS memanggil ini lewat responder chain.
+    @objc func newWindowForTab(_ sender: Any?) { newAccount() }
+
+    @objc func removeAccount() {
+        // Hanya akun yang windownya key; jangan tebak lewat fallback `current` saat semua tab disembunyikan.
+        guard let account = accounts.first(where: { $0.window?.isKeyWindow == true }), let win = account.window else {
+            NSSound.beep()
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Hapus akun ini dari WA?"
+        alert.informativeText = "Sesi login dan cache akun ini di Mac ikut dihapus. Chat di HP tidak terpengaruh."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Hapus")
+        alert.addButton(withTitle: "Batal")
+        alert.buttons[0].hasDestructiveAction = true
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        let id = account.id
+        account.webView.stopLoading()
+        account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
+        win.contentView = nil
+        win.close()
+        NSWindow.removeFrame(usingName: "win-\(id)")
+        accounts.removeAll { $0 === account }
+        Accounts.remove(id)
+        Accounts.markPendingRemoval(id)
+        refreshBadge()
+        // ponytail: tunda 1 detik supaya WebKit sempat melepas store; kalau masih gagal atau app keburu quit, diulang saat launch berikutnya.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+            self?.purgeDataStore(id)
+        }
+        if accounts.isEmpty { open(id: Accounts.all()[0]) }
+    }
+
+    private func buildMenu() {
+        let main = NSMenu()
+        func item(_ title: String, _ action: Selector?, _ key: String = "",
+                  _ mods: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+            let i = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            i.keyEquivalentModifierMask = mods
+            return i
+        }
+        func menu(_ title: String, _ items: [NSMenuItem]) -> NSMenu {
+            let m = NSMenu(title: title)
+            items.forEach(m.addItem)
+            let holder = NSMenuItem()
+            holder.submenu = m
+            main.addItem(holder)
+            return m
+        }
+        _ = menu("WA Desk", [
+            item("About WA Desk", #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+            .separator(),
+            item("Hide WA Desk", #selector(NSApplication.hide(_:)), "h"),
+            item("Quit WA Desk", #selector(NSApplication.terminate(_:)), "q"),
+        ])
+        _ = menu("File", [
+            item("Akun Baru", #selector(newAccount), "n"),
+            item("Hapus Akun Ini…", #selector(removeAccount)),
+            .separator(),
+            item("Close", #selector(NSWindow.performClose(_:)), "w"),
+        ])
+        // Selector standar responder chain: tanpa ini Cmd+C/V tidak jalan di WKWebView.
+        _ = menu("Edit", [
+            item("Undo", Selector(("undo:")), "z"),
+            item("Redo", Selector(("redo:")), "Z"),
+            .separator(),
+            item("Cut", #selector(NSText.cut(_:)), "x"),
+            item("Copy", #selector(NSText.copy(_:)), "c"),
+            item("Paste", #selector(NSText.paste(_:)), "v"),
+            item("Select All", #selector(NSText.selectAll(_:)), "a"),
+        ])
+        _ = menu("View", [
+            item("Reload", #selector(reload), "r"),
+            .separator(),
+            item("Zoom In", #selector(zoomIn), "="),
+            item("Zoom Out", #selector(zoomOut), "-"),
+            item("Actual Size", #selector(zoomReset), "0"),
+        ])
+        // AppKit otomatis menambah Show Next/Previous Tab, Merge All Windows di sini.
+        NSApp.windowsMenu = menu("Window", [
+            item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"),
+        ])
+        NSApp.mainMenu = main
+    }
+}
+
+
