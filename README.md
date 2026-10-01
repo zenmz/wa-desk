@@ -37,11 +37,12 @@ Angka diukur 2026-10-01 di macOS 26 pada 1 akun; RAM WebKit bertambah seiring ba
 
 **Inti**
 - Notifikasi native macOS, klik membuka chat yang benar. Badge unread di Dock.
-- Multi-akun: tiap akun satu tab native, sesi login terpisah.
+- Multi-akun dalam satu window: sesi login terpisah per akun, pindah lewat menu **Akun** (⌘1–⌘9) atau panel WA Desk.
 - Panggilan suara/video (WebRTC WebKit), download ke `~/Downloads`, attach file, drag-drop.
 - Link luar terbuka di browser default. Tutup window hanya menyembunyikan; pesan tetap masuk.
 
 **Tweaks (menu Tweaks)**
+- **Panel WA Desk** di bilah navigasi kiri WhatsApp (icon di bawah Meta AI): daftar akun (pindah, ganti nama, tambah, hapus) dan semua Tweaks di satu tempat.
 - **Blur Privasi**: tiap baris chat, pesan, dan header dikaburkan sendiri-sendiri; yang di bawah kursor jelas.
 - **Bookmark pesan** tanpa batas (pengganti pin yang dibatasi server WhatsApp), panel native, lompat ke pesan.
 - **Tag chat** dengan titik warna dan filter, lokal di Mac.
@@ -84,9 +85,10 @@ git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
 
 | Aksi | Shortcut |
 |---|---|
-| Akun baru (tab) | ⌘N |
-| Pindah akun | ⌃Tab / ⌃⇧Tab |
-| Hapus akun yang sedang dilihat (sesi + cache) | File → Hapus Akun Ini… |
+| Akun baru (dalam window yang sama) | ⌘N |
+| Pindah akun | ⌘1 … ⌘9, ⌃Tab / ⌃⇧Tab, atau panel WA Desk |
+| Ganti nama akun | Akun → Ganti Nama Akun…, atau ✎ di panel |
+| Hapus akun yang sedang dilihat (sesi + cache + bookmark/tag) | Akun → Hapus Akun Ini… |
 | Sembunyikan window (pesan tetap masuk) | ⌘W; klik ikon Dock untuk kembali |
 | Tampil/sembunyikan app dari mana saja | ⌥⌘W (global) |
 | Zoom | ⌘= / ⌘- / ⌘0 |
@@ -97,6 +99,7 @@ git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
 
 | Fitur | Cara | Catatan |
 |---|---|---|
+| Panel WA Desk | klik icon WA Desk di bilah kiri | semua aksi di bawah juga ada di panel; Esc menutup |
 | Blur Privasi | ⇧⌘B | per baris chat, per pesan, dan header; hover untuk melihat |
 | Sembunyikan Banner Download | Tweaks → centang | aktif secara default |
 | Bookmark Pesan | arahkan kursor ke pesan, ⌘D | **Tampilkan Bookmark…** ⇧⌘D: Return/dobel-klik buka chat dan lompat ke pesan, ⌫ hapus |
@@ -136,6 +139,7 @@ tetap berlaku setelah app di-restart.
 - **Blur/bookmark/tag tidak bekerja atau banner masih muncul**: jalankan Tweaks → Debug Selector. Toast
   menampilkan `pane:✓ main:✓ rows:N …`; ✗ atau `rows:0` berarti selector perlu diperbarui. Ringkasan DOM
   ditulis ke `~/Library/Application Support/wa-desk/debug-dom.txt`; lampirkan di issue.
+- **Icon WA Desk tidak muncul di bilah kiri**: WhatsApp belum login (icon hanya ada setelah bilah navigasi tampil), atau struktur bilah berubah; jalankan Debug Selector dan lampirkan `debug-dom.txt`.
 - **Window kosong**: offline saat launch, tekan ⌘R.
 - **Notifikasi tidak muncul**: cek System Settings → Notifications → WA Desk, dan apakah Senyap aktif
   (judul menu "Senyap ●").
@@ -149,7 +153,9 @@ main.swift           entry
 Helpers.swift        fungsi murni (semua dites --selftest)
 Selftest.swift       selftest: helper, store JSON, sintaks + API skrip inject (JavaScriptCore)
 Accounts.swift       daftar akun di UserDefaults
-AccountWindow.swift  window + WKWebView per akun, navigasi, download, notifikasi, jembatan tweak()
+Account.swift        satu akun: WKWebView + store + state, navigasi, download, notifikasi, jembatan tweak()
+MainWindow.swift     satu window untuk semua akun (webView ditumpuk, satu tampil)
+PanelScript.swift    icon di bilah navigasi + panel popover (JS/CSS), dirender dari state native
 AppDelegate.swift    menu, badge, hotkey, aksi Tweaks
 Tweaks.swift         setting, model Bookmark/Tag, store JSON, dan seluruh JS/CSS yang tahu DOM WhatsApp
 BookmarksPanel.swift panel bookmark
@@ -162,7 +168,7 @@ codesign ad-hoc, lalu menjalankan `wa-desk --selftest`; build gagal kalau selfte
 WebKit terpisah: pakai ini untuk menguji build sambil WA Desk terpasang tetap jalan. **Jangan** menjalankan dua
 instance dengan bundle id yang sama pada saat bersamaan: keduanya membuka data store yang sama dan sesi login bisa rusak.
 Semua ketergantungan pada DOM WhatsApp sengaja dikumpulkan di `Tweaks.swift` (`tweaksScript`,
-`tweaksStyle`). Desain dan plan ada di `docs/superpowers/`. Checklist uji manual: [docs/smoke-test.md](docs/smoke-test.md).
+`tweaksStyle`). Desain dan plan ada di `docs/superpowers/`.
 
 Rilis: naikkan versi di `Info.plist`, tag `vX.Y.Z`, lalu perbarui `url` + `sha256` di
 [zenmz/homebrew-tap](https://github.com/zenmz/homebrew-tap).
