@@ -4,13 +4,14 @@ import UserNotifications
 
 // MARK: - AppDelegate
 
-final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate, NSMenuItemValidation {
     private(set) var accounts: [AccountWindow] = []
     /// Dibangun ulang tiap dibuka (menuNeedsUpdate) supaya centang dan daftar tag selalu segar.
     private let tweaksMenu = NSMenu(title: "Tweaks")
 
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
+        GlobalHotkey.register { [weak self] in self?.toggleVisibility() }
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         Accounts.pendingRemoval().forEach(purgeDataStore)
@@ -118,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(item("Blur Privasi", #selector(toggleBlur), "B", [.command, .shift], on: TweakSettings.blur))
         menu.addItem(item("Sembunyikan Banner Download", #selector(toggleHideBanner), on: TweakSettings.hideBanner))
         menu.addItem(.separator())
+        menu.addItem(item("Jadwal Senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd)",
+                          #selector(toggleDND), on: TweakSettings.dndEnabled))
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
         menu.addItem(item("Debug Selector", #selector(debugSelectors)))
     }
@@ -152,6 +155,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             FileHandle.standardError.write(Data("wadesk debug: \(d)\n".utf8))
             let ok: (String) -> String = { (d[$0] as? Bool ?? false) ? "✓" : "✗" }
             acc.tweak("toast", ["msg": "pane:\(ok("paneSide")) main:\(ok("main")) rows:\(d["rows"] ?? 0) msgs:\(d["messages"] ?? 0) banner:\(d["bannerButtons"] ?? 0)"])
+        }
+    }
+
+    @objc func toggleDND() { TweakSettings.dndEnabled.toggle() }
+
+    @objc func toggleAlwaysOnTop() {
+        guard let w = NSApp.keyWindow else { return }
+        w.level = w.level == .floating ? .normal : .floating
+    }
+
+    /// Centang "Selalu di Atas" mengikuti window key. Item lain selalu aktif.
+    func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        if item.action == #selector(toggleAlwaysOnTop) {
+            item.state = NSApp.keyWindow?.level == .floating ? .on : .off
+            return NSApp.keyWindow != nil
+        }
+        return true
+    }
+
+    /// ⌥⌘W: app aktif → sembunyikan; selain itu → aktifkan dan tampilkan akun yang tersembunyi.
+    func toggleVisibility() {
+        if NSApp.isActive {
+            NSApp.hide(nil)
+        } else {
+            NSApp.activate()
+            accounts.filter { $0.window?.isVisible == false }.forEach(present)
         }
     }
 
@@ -245,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         // AppKit otomatis menambah Show Next/Previous Tab, Merge All Windows di sini.
         NSApp.windowsMenu = menu("Window", [
             item("Minimize", #selector(NSWindow.miniaturize(_:)), "m"),
+            item("Selalu di Atas", #selector(toggleAlwaysOnTop), "t", [.command, .option]),
         ])
         NSApp.mainMenu = main
     }

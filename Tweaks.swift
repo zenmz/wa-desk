@@ -1,4 +1,5 @@
 import Foundation
+import Carbon.HIToolbox
 
 // MARK: - Model
 
@@ -290,3 +291,26 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   applyTags();
 })();
 """#
+
+// MARK: - Hotkey global
+
+/// ⌥⌘W lewat Carbon RegisterEventHotKey: jalan tanpa izin Accessibility.
+enum GlobalHotkey {
+    private static var ref: EventHotKeyRef?
+    private static var action: (() -> Void)?
+
+    static func register(_ handler: @escaping () -> Void) {
+        action = handler
+        var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
+            GlobalHotkey.action?()
+            return noErr
+        }, 1, &spec, nil, nil)
+        let id = EventHotKeyID(signature: 0x5741_444B, id: 1)   // 'WADK'
+        let status = RegisterEventHotKey(UInt32(kVK_ANSI_W), UInt32(cmdKey | optionKey), id,
+                                         GetApplicationEventTarget(), 0, &ref)
+        if status != noErr {
+            FileHandle.standardError.write(Data("hotkey ⌥⌘W gagal didaftar: \(status)\n".utf8))
+        }
+    }
+}
