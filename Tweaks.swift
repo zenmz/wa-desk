@@ -130,15 +130,16 @@ func jsStringLiteral(_ s: String) -> String {
 }
 
 let tweaksStyle = """
-html[data-wadesk-blur="1"] #pane-side [role="listitem"], html[data-wadesk-blur="1"] #main div[data-id],
-html[data-wadesk-blur="1"] #main header { filter: blur(6px); transition: filter .12s; }
-html[data-wadesk-blur="1"] #pane-side [role="listitem"]:hover, html[data-wadesk-blur="1"] #main div[data-id]:hover,
-html[data-wadesk-blur="1"] #main header:hover { filter: none; }
+/* Baris chat ditandai JS dengan data-wadesk-row (struktur WhatsApp berubah-ubah: listitem / row / translateY). */
+html[data-wadesk-blur="1"] #pane-side [data-wadesk-row="1"], html[data-wadesk-blur="1"] #pane-side [style*="translateY"]:not([data-wadesk-row] *),
+html[data-wadesk-blur="1"] #main div[data-id], html[data-wadesk-blur="1"] #main header { filter: blur(6px); transition: filter .12s; }
+html[data-wadesk-blur="1"] #pane-side [data-wadesk-row="1"]:hover, html[data-wadesk-blur="1"] #pane-side [style*="translateY"]:hover,
+html[data-wadesk-blur="1"] #main div[data-id]:hover, html[data-wadesk-blur="1"] #main header:hover { filter: none; }
 html[data-wadesk-hide-banner="1"] [data-wadesk-banner="1"] { display: none !important; }
-#pane-side [role="listitem"][data-wadesk-tag]:not([data-wadesk-tag=""])::after {
+#pane-side [data-wadesk-row="1"][data-wadesk-tag]:not([data-wadesk-tag=""])::after {
   content: ""; position: absolute; right: 12px; top: 10px; width: 9px; height: 9px;
   border-radius: 50%; background: var(--wadesk-tag); pointer-events: none; }
-html[data-wadesk-filter]:not([data-wadesk-filter=""]) #pane-side [role="listitem"][data-wadesk-match="0"] { opacity: .25; }
+html[data-wadesk-filter]:not([data-wadesk-filter=""]) #pane-side [data-wadesk-row="1"][data-wadesk-match="0"] { opacity: .25; }
 .wadesk-flash { outline: 3px solid #34D399; outline-offset: 2px; border-radius: 8px; }
 #wadesk-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: #111827;
   color: #fff; padding: 8px 14px; border-radius: 8px; font: 13px -apple-system, sans-serif;
@@ -158,7 +159,16 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
   // Pembatas naik saat mencari kartu banner: daftar chat, panel pesan, baris, QR, dan header/kolom cari sidebar.
-  const BIG = '#pane-side, #main, [role="listitem"], [data-testid="link-device-qr-code"], header, [role="textbox"], [contenteditable="true"], input, textarea';
+  const BIG = '#pane-side, #main, [role="listitem"], [role="row"], [data-testid="link-device-qr-code"], header, [role="textbox"], [contenteditable="true"], input, textarea';
+  // Baris daftar chat. WhatsApp berganti-ganti antara role=listitem, role=row, dan elemen tervirtualisasi ber-translateY;
+  // ambil yang terluar saja (bersarang → satu baris), lalu tandai data-wadesk-row supaya CSS tidak perlu menebak.
+  const ROW = '#pane-side [role="listitem"], #pane-side [role="row"], #pane-side [style*="translateY"]';
+  function rows() {
+    const all = $$(ROW);
+    const out = all.filter(r => !(r.parentElement && r.parentElement.closest(ROW)));
+    for (const r of out) if (r.dataset.wadeskRow !== "1") r.dataset.wadeskRow = "1";
+    return out;
+  }
   const BANNER_BTN = 'button[data-testid^="download-native-client-button"]';
   const BANNER_TEXT = /(get|download|unduh|dapatkan)\s+whatsapp\s+(for|untuk)\s+mac|whatsapp\s+for\s+mac/i;
 
@@ -170,7 +180,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   function rowTitle(row) { const s = row.querySelector("span[title]"); return s ? s.getAttribute("title") : null; }
 
   function applyTags() {
-    for (const row of $$('#pane-side [role="listitem"]')) {
+    for (const row of rows()) {
       const t = rowTitle(row);
       // hasOwnProperty + Array.isArray: judul chat seperti "constructor" tidak boleh mengambil properti prototype.
       const colors = (t && Object.prototype.hasOwnProperty.call(W.tags, t) && Array.isArray(W.tags[t])) ? W.tags[t] : [];
@@ -221,7 +231,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   }
   function outline(el, depth, maxDepth, lines) {
     if (!el || depth > maxDepth || lines.length > 350) return;
-    if (el.id === "pane-side") { lines.push("  ".repeat(depth) + "#pane-side (" + $$('[role="listitem"]', el).length + " baris, isi dilewati)"); return; }
+    if (el.id === "pane-side") { lines.push("  ".repeat(depth) + "#pane-side (" + rows().length + " baris; lihat bagian C)"); return; }
     if (el.id === "main") { lines.push("  ".repeat(depth) + "#main (isi dilewati)"); return; }
     lines.push("  ".repeat(depth) + describe(el));
     for (const c of el.children) outline(c, depth + 1, maxDepth, lines);
@@ -236,32 +246,51 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
     }
     lines.push("== B. Outline #app (tanpa isi #pane-side/#main) ==");
     outline(scope === document ? document.body : scope, 0, 9, lines);
-    lines.push("", "== C. Baris chat pertama (outerHTML) ==", ($('#pane-side [role="listitem"]') || {}).outerHTML?.slice(0, 2500) || "(tidak ada)");
+    lines.push("", "== C. Isi #pane-side (outline 2 anak pertama per tingkat, kedalaman 7) ==");
+    const outlineFew = (el, depth) => {
+      if (!el || depth > 7 || lines.length > 600) return;
+      lines.push("  ".repeat(depth) + describe(el) + (el.getAttribute("style") ? " style=" + JSON.stringify(el.getAttribute("style").slice(0, 60)) : ""));
+      Array.from(el.children).slice(0, 2).forEach(c => outlineFew(c, depth + 1));
+    };
+    outlineFew($('#pane-side'), 0);
+    const firstTitle = $('#pane-side span[title]');
+    lines.push("", "== C2. Rantai leluhur span[title] pertama di #pane-side ==", firstTitle ? chain(firstTitle) : "(tidak ada)");
+    lines.push("", "== C3. Baris terdeteksi (rows()) pertama (outerHTML) ==", (rows()[0] || {}).outerHTML?.slice(0, 2500) || "(tidak ada)");
     lines.push("", "== D. Pesan pertama (outerHTML) ==", ($('#main div[data-id]') || {}).outerHTML?.slice(0, 2500) || "(tidak ada)");
     lines.push("", "== E. Header chat (outerHTML) ==", ($('#main header') || {}).outerHTML?.slice(0, 1500) || "(tidak ada)");
     lines.push("", "== F. debug() ==", JSON.stringify(debug()));
     return lines.join("\n");
   }
 
+  // Nama chat di header percakapan: span[title] pertama yang bukan tombol/aksi; fallback teks header.
+  function headerTitleEl() {
+    const h = $('#main header');
+    if (!h) return null;
+    return h.querySelector('span[title]:not([role="button"])') || h.querySelector('[data-testid="conversation-info-header-chat-title"]') || h.querySelector('span[dir="auto"]') || null;
+  }
+  function headerTitle(el) { return el.getAttribute("title") || (el.textContent || "").trim(); }
   function capture() {
     const el = W.hovered;
     if (!el || !el.isConnected) return null;
     const id = el.getAttribute("data-id") || "";
+    // Bentuk lama "true_<jid>_<id>" masih dipakai kalau ada; bentuk baru hex murni → jid tidak diketahui.
     const parts = id.split("_");
-    const header = $('#main header span[title]');
+    const legacy = parts.length >= 3 && (parts[0] === "true" || parts[0] === "false");
+    const header = headerTitleEl();
     const pre = el.querySelector("[data-pre-plain-text]");
     const m = pre ? /^\[([^\]]*)\]/.exec(pre.getAttribute("data-pre-plain-text") || "") : null;
     const textEl = pre || el.querySelector(".selectable-text") || el;
-    return { id, chat: header ? header.getAttribute("title") : "", jid: parts[1] || null,
-             text: (textEl.innerText || "").trim().slice(0, 300), time: m ? "[" + m[1] + "]" : "",
-             fromMe: parts[0] === "true" };
+    const fromMe = legacy ? parts[0] === "true" : !!(el.classList.contains("message-out") || el.querySelector(".message-out"));
+    return { id, chat: header ? headerTitle(header) : "", jid: legacy ? (parts[1] || null) : null,
+             text: (textEl.innerText || "").trim().slice(0, 300), time: m ? "[" + m[1] + "]" : "", fromMe };
   }
 
   function currentChat() {
-    const header = $('#main header span[title]');
+    const header = headerTitleEl();
     if (!header) return null;
     const any = $('#main div[data-id]');
-    return { title: header.getAttribute("title"), jid: any ? (any.getAttribute("data-id").split("_")[1] || null) : null };
+    const parts = any ? (any.getAttribute("data-id") || "").split("_") : [];
+    return { title: headerTitle(header), jid: parts.length >= 3 ? (parts[1] || null) : null };
   }
 
   function click(el) {
@@ -270,7 +299,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
 
   function openChat(title, jid) {
     // Klik di node terdalam (judul) supaya handler React di elemen dalam baris ikut kena; event bubbling tetap sampai listitem.
-    const row = $$('#pane-side [role="listitem"]').find(r => rowTitle(r) === title);
+    const row = rows().find(r => rowTitle(r) === title);
     if (row) { click(row.querySelector("span[title]") || row); return "clicked"; }
     if (jid && /@c\.us$/.test(jid)) { location.href = "https://web.whatsapp.com/send?phone=" + jid.replace(/@c\.us$/, ""); return "navigated"; }
     return "missing";
@@ -281,8 +310,8 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
       const t0 = Date.now();
       const tick = () => {
         try {
-        const header = $('#main header span[title]');
-        if (header && header.getAttribute("title") === title) {
+        const header = headerTitleEl();
+        if (header && headerTitle(header) === title) {
           const msg = $('#main div[data-id="' + CSS.escape(id) + '"]');
           if (!msg) return resolve(false);
           msg.scrollIntoView({ block: "center" });
@@ -308,7 +337,9 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   }
 
   function debug() {
-    return { paneSide: !!$('#pane-side'), main: !!$('#main'), rows: $$('#pane-side [role="listitem"]').length,
+    return { paneSide: !!$('#pane-side'), main: !!$('#main'), rows: rows().length,
+             rowsByRole: $$('#pane-side [role="listitem"], #pane-side [role="row"]').length, rowsByTranslate: $$('#pane-side [style*="translateY"]').length,
+             headerTitle: (() => { const h = headerTitleEl(); return h ? headerTitle(h) : null; })(),
              messages: $$('#main div[data-id]').length, bannerButtons: $$(BANNER_BTN).length, bannerText: bannerTextLeaves(true).length, hovered: !!W.hovered,
              banner: $$('[data-wadesk-banner="1"]').map(e => e.tagName.toLowerCase() + (e.id ? "#" + e.id : "") + "." + String(e.className || "").trim().split(/\s+/).slice(0, 2).join(".")) };
   }

@@ -31,9 +31,9 @@ Jangkar DOM WhatsApp Web yang dipakai (stabil bertahun-tahun, tetap bisa berubah
 | Jangkar | Arti |
 |---|---|
 | `#pane-side` | kontainer daftar chat (tervirtualisasi) |
-| `#pane-side [role="listitem"]` | satu baris chat; judul di `span[title]` pertama |
+| `#pane-side [role="listitem"]`, `[role="row"]`, atau elemen ber-`translateY` (terluar; JS menandai `data-wadesk-row`) | satu baris chat; judul di `span[title]` pertama |
 | `#main` | panel percakapan; nama chat di `#main header span[title]` |
-| `#main div[data-id]` | satu pesan; `data-id` = `<true|false>_<jid>_<msgid>` (`true` = dari saya) |
+| `#main div[data-id]` | satu pesan; `data-id` lama `<true|false>_<jid>_<msgid>`, baru hex murni (maka `fromMe` dari class `message-out`, `jid` tidak diketahui) |
 | `[data-pre-plain-text]` | teks pesan; atribut berisi `[HH:MM, D/M/YYYY] Nama: ` |
 | `button[data-testid^="download-native-client-button"]` | tombol banner download (ditemukan via probe 2026-10-01) |
 
