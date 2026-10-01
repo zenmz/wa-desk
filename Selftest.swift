@@ -118,6 +118,22 @@ func selftest() -> Int32 {
     check(accountLabel(custom: nil, index: 0) == "Akun 1", "accountLabel default")
     check(accountLabel(custom: " \n ", index: 1) == "Akun 2", "accountLabel spasi/newline → default")
     check(accountLabel(custom: " Kerja ", index: 5) == "Kerja", "accountLabel kustom di-trim")
+    // Aksi panel: input dari halaman web, semua divalidasi
+    let uid = "3F2504E0-4F89-11D3-9A0C-0305E82C3301"
+    check(panelAction(from: ["action": "panelOpen"]) == .open, "panelAction open")
+    check(panelAction(from: ["action": "switchAccount", "id": uid]) == .switchAccount(uid), "panelAction switch")
+    check(panelAction(from: ["action": "switchAccount", "id": "x"]) == nil, "panelAction switch id bukan UUID")
+    check(panelAction(from: ["action": "renameAccount"]) == nil, "panelAction rename tanpa id")
+    check(panelAction(from: ["action": "mute", "min": 60]) == .mute(60), "panelAction mute 60")
+    check(panelAction(from: ["action": "mute", "min": 60.0]) == .mute(60), "panelAction mute double dari JS")
+    check(panelAction(from: ["action": "mute", "min": 45]) == nil, "panelAction mute 45 ditolak")
+    check(panelAction(from: ["action": "toggleTag", "tag": "Kerja"]) == .toggleTag("Kerja"), "panelAction tag")
+    check(panelAction(from: ["action": "toggleTag", "tag": ""]) == nil, "panelAction tag kosong ditolak")
+    check(panelAction(from: ["action": "setFilter", "color": ""]) == .setFilter(""), "panelAction filter semua")
+    check(panelAction(from: ["action": "setFilter", "color": "#60A5FA"]) == .setFilter("#60A5FA"), "panelAction filter palet")
+    check(panelAction(from: ["action": "setFilter", "color": "#000000"]) == nil, "panelAction filter di luar palet")
+    check(panelAction(from: ["action": "formatDisk"]) == nil, "panelAction tak dikenal")
+    check(panelAction(from: [:]) == nil, "panelAction kosong")
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1

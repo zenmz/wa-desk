@@ -93,6 +93,7 @@ final class Account: NSObject {
         if let css = customCSS() { tweak("setCustomCSS", ["css": css]) }
         pushTags()
         tweak("setFilter", ["color": tagFilter])
+        delegate?.pushPanelState(to: self)
     }
 
     func pushTags() { tweak("setTags", ["map": tagColors(store.tags)]) }
@@ -216,8 +217,12 @@ extension Account: WKScriptMessageHandler {
               message.frameInfo.securityOrigin.host == "web.whatsapp.com",
               let body = message.body as? [String: Any] else { return }
         if message.name == "wadesk" {
-            let title = body["chat"] as? String ?? ""
-            openChatTitle = title.isEmpty ? nil : title
+            if body["action"] is String {
+                delegate?.handlePanelAction(body, from: self)
+            } else if let title = body["chat"] as? String {
+                openChatTitle = title.isEmpty ? nil : title
+                delegate?.pushPanelState(to: self)
+            }
             return
         }
         guard let nid = body["id"] as? String, Int(nid) != nil else { return }

@@ -50,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         mainWindow.showWindow(nil)
         mainWindow.window?.makeKeyAndOrderFront(nil)
         UserDefaults.standard.set(account.id, forKey: "activeAccount")
+        pushPanelState()
     }
 
     /// Akun yang panel bookmark-nya key; kalau tidak, akun yang sedang tampil.
@@ -65,6 +66,64 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func accountTitleChanged(_ account: Account) {
         refreshBadge()
         if mainWindow.active === account { mainWindow.refreshTitle() }
+        pushPanelState()
+    }
+
+    // MARK: panel di halaman
+
+    /// State yang dirender panel di halaman akun `account`.
+    func panelState(for account: Account) -> [String: Any] {
+        let now = Date()
+        let scheduled = dndActive(minutesNow: minutesOfDay(now), start: TweakSettings.dndStart,
+                                  end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled)
+        let temporary = muteActive(now: now, until: TweakSettings.muteUntil)
+        let open = account.openChatTitle
+        return [
+            "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "",
+            "accounts": accounts.map { ["id": $0.id, "name": $0.name, "unread": $0.unread, "active": mainWindow.active === $0] },
+            "blur": TweakSettings.blur,
+            "hideBanner": TweakSettings.hideBanner,
+            "mute": ["active": temporary, "label": temporary ? muteUntilLabel(TweakSettings.muteUntil ?? .distantFuture) : ""],
+            "dnd": ["enabled": TweakSettings.dndEnabled, "start": TweakSettings.dndStart, "end": TweakSettings.dndEnd, "active": scheduled],
+            "onTop": mainWindow.window?.level == .floating,
+            "tags": account.store.tags.tags.map { t in
+                ["name": t.name, "color": t.color, "checked": open.flatMap { account.store.tags.chats[$0]?.contains(t.name) } ?? false]
+            },
+            "hasOpenChat": open != nil,
+            "filter": account.tagFilter,
+        ]
+    }
+
+    /// Dorong state panel ke satu akun atau ke semua akun.
+    func pushPanelState(to account: Account? = nil) {
+        for a in (account.map { [$0] } ?? accounts) { a.tweak("setPanelState", ["state": panelState(for: a)]) }
+    }
+
+    /// Aksi dari panel di halaman (sudah lewat guard origin). Divalidasi panelAction(from:), lalu dipetakan ke aksi menu.
+    func handlePanelAction(_ body: [String: Any], from account: Account) {
+        guard let action = panelAction(from: body) else { return }
+        switch action {
+        case .open: break
+        case .switchAccount(let id): if let a = accounts.first(where: { $0.id == id }) { show(a) }
+        case .newAccount: newAccount()
+        case .renameAccount(let id): if let a = accounts.first(where: { $0.id == id }) { rename(a) }
+        case .removeAccount: removeAccount()
+        case .toggleBlur: toggleBlur()
+        case .toggleBanner: toggleHideBanner()
+        case .bookmark: bookmarkMessage()
+        case .showBookmarks: account.showBookmarksPanel()
+        case .toggleTag(let name): toggleTag(named: name, in: account)
+        case .newTag: newTag()
+        case .setFilter(let color): setFilter(color, in: account)
+        case .mute(let minutes): mute(minutes: minutes)
+        case .muteOff: muteOff()
+        case .toggleDND: toggleDND()
+        case .editDND: editQuietHours()
+        case .toggleOnTop: toggleAlwaysOnTop()
+        case .reloadCSS: reloadCustomCSS()
+        case .debug: debugSelectors()
+        }
+        pushPanelState()
     }
 
     /// Hapus data store akun yang sudah dihapus. Dipanggil saat hapus akun dan saat launch,
@@ -244,11 +303,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func toggleBlur() {
         TweakSettings.blur.toggle()
         broadcast("setBlur", ["on": TweakSettings.blur])
+        pushPanelState()
     }
 
     @objc func toggleHideBanner() {
         TweakSettings.hideBanner.toggle()
         broadcast("setHideBanner", ["on": TweakSettings.hideBanner])
+        pushPanelState()
     }
 
     @objc func reloadCustomCSS() {
@@ -282,7 +343,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
     }
 
-    @objc func toggleDND() { TweakSettings.dndEnabled.toggle() }
+    @objc func toggleDND() {
+        TweakSettings.dndEnabled.toggle()
+        pushPanelState()
+    }
 
     // MARK: senyap sementara
 
@@ -293,22 +357,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         return "sampai \(f.string(from: until))"
     }
 
-    @objc func muteFor(_ sender: NSMenuItem) {
-        let minutes = sender.representedObject as? Int ?? 60
+    @objc func muteFor(_ sender: NSMenuItem) { mute(minutes: sender.representedObject as? Int ?? 60) }
+    @objc func muteOneHour() { mute(minutes: 60) }
+
+    /// 0 = sampai dimatikan.
+    func mute(minutes: Int) {
         let until: Date = minutes == 0 ? .distantFuture : Date().addingTimeInterval(TimeInterval(minutes * 60))
         TweakSettings.muteUntil = until
         current?.tweak("toast", ["msg": "Senyap \(muteUntilLabel(until))"])
-    }
-
-    @objc func muteOneHour() {
-        let until = Date().addingTimeInterval(3600)
-        TweakSettings.muteUntil = until
-        current?.tweak("toast", ["msg": "Senyap \(muteUntilLabel(until))"])
+        pushPanelState()
     }
 
     @objc func muteOff() {
         TweakSettings.muteUntil = nil
         current?.tweak("toast", ["msg": "Senyap dimatikan"])
+        pushPanelState()
     }
 
     /// Dialog dua pemilih jam (Mulai/Selesai); menyimpan jadwal dan langsung mengaktifkannya.
@@ -341,11 +404,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         TweakSettings.dndEnd = hhmm(fromMinutes: minutesOfDay(end.dateValue))
         TweakSettings.dndEnabled = true
         current?.tweak("toast", ["msg": "Jadwal senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd) aktif"])
+        pushPanelState()
     }
 
     @objc func toggleAlwaysOnTop() {
         guard let w = mainWindow.window else { return }
         w.level = w.level == .floating ? .normal : .floating
+        pushPanelState()
     }
 
     /// Centang "Selalu di Atas" mengikuti window utama. Item lain selalu aktif.
@@ -385,13 +450,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     // MARK: Tag
 
     @objc func toggleTag(_ sender: NSMenuItem) {
-        guard let acc = current, let chat = acc.openChatTitle, let name = sender.representedObject as? String else { return }
+        guard let acc = current, let name = sender.representedObject as? String else { return }
+        toggleTag(named: name, in: acc)
+    }
+
+    func toggleTag(named name: String, in acc: Account) {
+        guard let chat = acc.openChatTitle, acc.store.tags.tags.contains(where: { $0.name == name }) else { return }
         acc.store.update { data in
             var names = data.chats[chat] ?? []
             if let i = names.firstIndex(of: name) { names.remove(at: i) } else { names.append(name) }
             data.chats[chat] = names.isEmpty ? nil : names
         }
         acc.pushTags()
+        pushPanelState()
     }
 
     @objc func newTag() {
@@ -435,6 +506,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             if let chat = acc.openChatTitle { data.chats[chat, default: []].append(name) }
         }
         acc.pushTags()
+        pushPanelState()
     }
 
     @objc func deleteTag(_ sender: NSMenuItem) {
@@ -460,12 +532,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             acc.tweak("setFilter", ["color": ""])
         }
         acc.pushTags()
+        pushPanelState()
     }
 
     @objc func setTagFilter(_ sender: NSMenuItem) {
         guard let acc = current else { return }
-        acc.tagFilter = sender.representedObject as? String ?? ""
-        acc.tweak("setFilter", ["color": acc.tagFilter])
+        setFilter(sender.representedObject as? String ?? "", in: acc)
+    }
+
+    func setFilter(_ color: String, in acc: Account) {
+        acc.tagFilter = color
+        acc.tweak("setFilter", ["color": color])
+        pushPanelState()
     }
 
     @objc func newAccount() { show(attach(id: Accounts.add())) }
@@ -506,6 +584,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         AccountNames.set(name.isEmpty ? nil : String(name.prefix(24)), for: account.id)
         mainWindow.refreshTitle()
+        pushPanelState()
     }
 
     @objc func removeAccount() {
@@ -542,6 +621,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
         if accounts.isEmpty { attach(id: Accounts.all()[0]) }
         show(accounts[min(index, accounts.count - 1)])
+        pushPanelState()
     }
 
     private func buildMenu() {

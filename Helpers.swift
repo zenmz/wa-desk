@@ -89,6 +89,47 @@ func accountLabel(custom: String?, index: Int) -> String {
     return c.isEmpty ? "Akun \(index + 1)" : c
 }
 
+/// Aksi dari panel di halaman. Hanya daftar ini yang diterima; argumen divalidasi di panelAction(from:).
+enum PanelAction: Equatable {
+    case open, switchAccount(String), newAccount, renameAccount(String), removeAccount
+    case toggleBlur, toggleBanner, bookmark, showBookmarks, toggleTag(String), newTag, setFilter(String)
+    case mute(Int), muteOff, toggleDND, editDND, toggleOnTop, reloadCSS, debug
+}
+
+/// Parse pesan panel `{action, id?, tag?, color?, min?}`. Input dari halaman web: aksi tak dikenal atau argumen
+/// tak valid → nil. Kepemilikan `id` dicek lagi di AppDelegate.
+func panelAction(from d: [String: Any]) -> PanelAction? {
+    let validID = (d["id"] as? String).flatMap { UUID(uuidString: $0) != nil ? $0 : nil }
+    switch d["action"] as? String {
+    case "panelOpen": return .open
+    case "switchAccount": return validID.map { .switchAccount($0) }
+    case "newAccount": return .newAccount
+    case "renameAccount": return validID.map { .renameAccount($0) }
+    case "removeAccount": return .removeAccount
+    case "toggleBlur": return .toggleBlur
+    case "toggleBanner": return .toggleBanner
+    case "bookmark": return .bookmark
+    case "showBookmarks": return .showBookmarks
+    case "toggleTag":
+        guard let t = d["tag"] as? String, tagNameValid(t) else { return nil }
+        return .toggleTag(t)
+    case "newTag": return .newTag
+    case "setFilter":
+        guard let c = d["color"] as? String, c.isEmpty || tagColorValid(c) else { return nil }
+        return .setFilter(c)
+    case "mute":
+        guard let m = (d["min"] as? NSNumber)?.intValue, [30, 60, 120, 0].contains(m) else { return nil }
+        return .mute(m)
+    case "muteOff": return .muteOff
+    case "toggleDND": return .toggleDND
+    case "editDND": return .editDND
+    case "toggleOnTop": return .toggleOnTop
+    case "reloadCSS": return .reloadCSS
+    case "debug": return .debug
+    default: return nil
+    }
+}
+
 func tagColorValid(_ hex: String) -> Bool { tagPalette.contains(hex) }
 
 func tagNameValid(_ name: String) -> Bool {
