@@ -161,22 +161,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     @objc func toggleDND() { TweakSettings.dndEnabled.toggle() }
 
     @objc func toggleAlwaysOnTop() {
-        guard let w = NSApp.keyWindow else { return }
+        guard let w = current?.window else { return }
         w.level = w.level == .floating ? .normal : .floating
     }
 
     /// Centang "Selalu di Atas" mengikuti window key. Item lain selalu aktif.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleAlwaysOnTop) {
-            item.state = NSApp.keyWindow?.level == .floating ? .on : .off
-            return NSApp.keyWindow != nil
+            item.state = current?.window?.level == .floating ? .on : .off
+            return current?.window != nil
         }
         return true
     }
 
-    /// ⌥⌘W: app aktif → sembunyikan; selain itu → aktifkan dan tampilkan akun yang tersembunyi.
+    /// ⌥⌘W: app aktif dengan window terlihat → sembunyikan; selain itu → aktifkan dan tampilkan akun yang tersembunyi.
     func toggleVisibility() {
-        if NSApp.isActive {
+        // Sembunyikan hanya kalau memang ada window akun yang terlihat; setelah Cmd+W semua window
+        // tersembunyi walau app masih aktif, jadi ⌥⌘W harus menampilkan, bukan hide (yang tidak terlihat).
+        let anyVisible = accounts.contains { $0.window?.isVisible == true }
+        if NSApp.isActive && anyVisible {
             NSApp.hide(nil)
         } else {
             NSApp.activate()
