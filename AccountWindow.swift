@@ -89,7 +89,7 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         tweak("setFilter", ["color": tagFilter])
     }
 
-    func pushTags() { tweak("setTags", ["map": tagMap(store.tags)]) }
+    func pushTags() { tweak("setTags", ["map": tagColors(store.tags)]) }
 
     /// Window ini atau panel bookmark-nya. Dipakai AppDelegate.current supaya aksi menu mengenai akun yang benar
     /// saat panel yang sedang key.

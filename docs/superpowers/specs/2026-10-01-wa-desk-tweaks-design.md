@@ -135,7 +135,7 @@ Baris tak cocok filter **diredupkan**, bukan disembunyikan: daftar chat WhatsApp
 | `currentChat()` | `{title, jid}` chat yang terbuka (`jid` dari `#main div[data-id]` mana pun), atau `null` |
 | `openChat(title, jid)` | cari `#pane-side span[title]` yang `title === title` → dispatch `mousedown`,`mouseup`,`click` pada `closest('[role="listitem"]')` → `"clicked"`. Tidak ada & `jid` berakhiran `@c.us` → `location.href = "https://web.whatsapp.com/send?phone=" + nomor` → `"navigated"`. Selain itu `"missing"` |
 | `jumpTo(id, title)` | poll ≤ 3 s sampai `#main header span[title]`.title === title; lalu `#main div[data-id="<id>"]` → `scrollIntoView({block:"center"})`, tambah `.wadesk-flash` 2 s → `true`; tidak ketemu → `false` |
-| `setTags(map)` | `map` = {judul: warnaHex}; simpan; `applyTags()`: tiap baris `[role="listitem"]`: judul → `row.dataset.wadeskTag = warna || ""`, `row.style.setProperty("--wadesk-tag", warna)`, dan `row.dataset.wadeskMatch` = `"1"` kalau filter kosong atau tag baris == filter, selain itu `"0"` |
+| `setTags(map)` | `map` = {judul: [warnaHex…]}; simpan; `applyTags()`: tiap baris `[role="listitem"]`: judul → `colors`; titik memakai warna pertama: `row.dataset.wadeskTag = colors[0] || ""`, `row.style.setProperty("--wadesk-tag", colors[0])`, dan `row.dataset.wadeskMatch` = `"1"` kalau filter kosong atau `colors.includes(filter)`, selain itu `"0"` |
 | `setFilter(color)` | simpan; `html.dataset.wadeskFilter = color`; `applyTags()` |
 | `setBlur(on)`, `setHideBanner(on)` | set `html.dataset.wadeskBlur` / `wadeskHideBanner` ke `"1"`/`""` |
 | `markBanner()` | untuk tiap `button[data-testid^="download-native-client-button"]`: naik ke leluhur sampai `textContent` memuat `/download whatsapp/i` **dan** tidak memuat `[data-testid="link-device-qr-code"]` dan bukan `#app`/`body` → `el.dataset.wadeskBanner = "1"` |
@@ -213,7 +213,7 @@ func bookmark(fromCapture d: [String: Any], savedAt: Date) -> Bookmark?
     // butuh id & chat non-kosong; text dipotong 300; field lain opsional dengan default
 func tagColorValid(_ hex: String) -> Bool             // ada di palet
 func tagNameValid(_ name: String) -> Bool             // 1–24 karakter setelah trim, tanpa newline
-func tagMap(_ data: TagData) -> [String: String]      // judul → warna tag pertama yang masih ada
+func tagColors(_ data: TagData) -> [String: [String]]   // judul → warna semua tag yang masih ada, urut
 ```
 
 ## 8. Error handling
@@ -237,7 +237,7 @@ Selftest (otomatis, tiap build):
 - `dndActive`: disabled; start<end dalam/luar; lewat tengah malam (23:00 & 03:00 aktif, 12:00 tidak); start==end; string invalid.
 - `bookmark(fromCapture:)`: lengkap; tanpa `id` → nil; `text` 400 karakter → 300; `fromMe` bukan Bool → false.
 - `tagColorValid` / `tagNameValid`: valid, kosong, 25 karakter, bukan palet.
-- `tagMap`: chat dengan tag terhapus → tidak masuk; dua tag → warna tag pertama.
+- `tagColors`: tag terhapus dilewati; dua tag → kedua warna, urut.
 - Roundtrip JSON `TagData` dan `[Bookmark]` lewat `JSONEncoder/Decoder`.
 - **Sintaks JS**: `JSContext().evaluateScript(tweaksScript)`; `context.exception == nil`; dan `evaluateScript("typeof __wadesk.capture")` == `"function"` (JSC tanpa DOM: skrip harus menoleransi `document` undefined saat init — guard `if (typeof document !== "undefined")` sebelum menyentuh DOM).
 

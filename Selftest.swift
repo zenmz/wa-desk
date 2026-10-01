@@ -75,7 +75,7 @@ func selftest() -> Int32 {
     check(!tagNameValid("\t\t") && tagNameValid(String(repeating: "a", count: 24)), "tagNameValid tab-only dan 24 karakter")
     let td = TagData(tags: [Tag(name: "Kerja", color: "#60A5FA"), Tag(name: "Keluarga", color: "#F472B6")],
                      chats: ["Budi": ["Hilang", "Kerja", "Keluarga"], "Ani": ["Hilang"]])
-    check(tagMap(td) == ["Budi": "#60A5FA"], "tagMap: tag terhapus dilewati, tag pertama menang")
+    check(tagColors(td) == ["Budi": ["#60A5FA", "#F472B6"]], "tagColors: tag terhapus dilewati, urutan dipertahankan, chat tanpa tag valid hilang")
 
     // Store: roundtrip JSON dan file korup
     let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("wadesk-selftest-\(UUID().uuidString)")

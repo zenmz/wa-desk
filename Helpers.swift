@@ -84,12 +84,14 @@ func tagNameValid(_ name: String) -> Bool {
     return (1...24).contains(t.count) && t.rangeOfCharacter(from: .newlines) == nil
 }
 
-/// Judul chat → warna tag pertama yang masih ada di daftar tag. Chat tanpa tag valid tidak masuk.
-func tagMap(_ data: TagData) -> [String: String] {
+/// Judul chat → warna semua tag yang masih ada di daftar tag, urut sesuai urutan tag di chat.
+/// Chat tanpa tag valid tidak masuk. Titik di daftar chat memakai warna pertama; filter mencocokkan salah satunya.
+func tagColors(_ data: TagData) -> [String: [String]] {
     let colors = Dictionary(data.tags.map { ($0.name, $0.color) }, uniquingKeysWith: { a, _ in a })
-    var out: [String: String] = [:]
+    var out: [String: [String]] = [:]
     for (chat, names) in data.chats {
-        if let c = names.lazy.compactMap({ colors[$0] }).first { out[chat] = c }
+        let found = names.compactMap { colors[$0] }
+        if !found.isEmpty { out[chat] = found }
     }
     return out
 }

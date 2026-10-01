@@ -281,13 +281,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.frame = NSRect(x: 0, y: 0, width: 220, height: 58)
+        field.translatesAutoresizingMaskIntoConstraints = false
+        colors.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            field.widthAnchor.constraint(equalToConstant: 220),
+            colors.widthAnchor.constraint(equalToConstant: 220),
+        ])
         alert.accessoryView = stack
         alert.addButton(withTitle: "Buat")
         alert.addButton(withTitle: "Batal")
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-        guard tagNameValid(name), !acc.store.tags.tags.contains(where: { $0.name == name }) else {
+        guard tagNameValid(name), !acc.store.tags.tags.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
             NSSound.beep()
             acc.tweak("toast", ["msg": "Nama tag kosong, >24 karakter, atau sudah ada"])
             return

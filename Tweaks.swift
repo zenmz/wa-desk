@@ -151,7 +151,7 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   const root = typeof window !== "undefined" ? window : globalThis;
   if (root.__wadesk) return;
   const hasDOM = typeof document !== "undefined";
-  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: "" };
+  const W = { hovered: null, tags: {}, filter: "", toastTimer: 0, lastChat: null };
   const $ = (s, r) => (r || document).querySelector(s);
   const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
   const html = () => document.documentElement;
@@ -168,14 +168,15 @@ let tweaksScript = "const WADESK_STYLE = \(jsStringLiteral(tweaksStyle));\n" + #
   function applyTags() {
     for (const row of $$('#pane-side [role="listitem"]')) {
       const t = rowTitle(row);
-      const color = (t && W.tags[t]) || "";
+      const colors = (t && W.tags[t]) || [];
+      const color = colors[0] || "";
       if (row.dataset.wadeskTag !== color) {
         row.dataset.wadeskTag = color;
         row.style.setProperty("--wadesk-tag", color);
         // Jangkar untuk titik ::after: hanya kalau baris belum punya posisi sendiri (daftar WA tervirtualisasi, baris absolute).
         if (color && getComputedStyle(row).position === "static") row.style.position = "relative";
       }
-      const match = (!W.filter || color === W.filter) ? "1" : "0";
+      const match = (!W.filter || colors.includes(W.filter)) ? "1" : "0";
       if (row.dataset.wadeskMatch !== match) row.dataset.wadeskMatch = match;
     }
   }
