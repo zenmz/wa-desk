@@ -15,7 +15,8 @@ let panelStyle = """
 #wadesk-panel .wd-row.wd-link, #wadesk-panel .wd-acc { cursor: pointer; }
 #wadesk-panel .wd-row.wd-link:hover, #wadesk-panel .wd-acc:hover { background: rgba(0,0,0,.05); }
 #wadesk-panel.wd-dark .wd-row.wd-link:hover, #wadesk-panel.wd-dark .wd-acc:hover { background: rgba(255,255,255,.06); }
-#wadesk-panel .wd-row > span:first-child { flex: 1; }
+#wadesk-panel .wd-row > span:first-child:not(.wd-dot) { flex: 1; }
+#wadesk-panel .wd-dot { flex: 0 0 8px; width: 8px; height: 8px; }
 #wadesk-panel .wd-danger { color: #ea4335; }
 #wadesk-panel .wd-dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; opacity: .35; flex: none; }
 #wadesk-panel .wd-acc.on .wd-dot { background: #25d366; border-color: #25d366; opacity: 1; }
