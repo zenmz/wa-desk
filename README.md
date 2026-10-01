@@ -1,110 +1,170 @@
-# WA Desk
+<p align="center">
+  <img src="docs/assets/icon-256.png" width="128" height="128" alt="Icon WA Desk">
+</p>
 
-Client WhatsApp Desktop ringan untuk macOS 14+. Satu `WKWebView` (WebKit sistem)
-per akun di atas web.whatsapp.com, tanpa Electron, tanpa dependency.
-Notifikasi native, badge Dock, download ke ~/Downloads, call, multi-akun sebagai tab.
+<h1 align="center">WA Desk</h1>
 
-## Install (Homebrew)
+<p align="center">
+  WhatsApp Desktop ringan untuk macOS. Engine WebKit bawaan sistem, tanpa Electron, tanpa dependency.<br>
+  <sub>A lightweight native WhatsApp Web wrapper for macOS with privacy blur, local bookmarks, chat tags, quiet hours, and multi-account tabs.</sub>
+</p>
 
-    brew install zenmz/tap/wa-desk
-    ln -sfn "$(brew --prefix)/opt/wa-desk/WA Desk.app" "/Applications/WA Desk.app"
+<p align="center">
+  <a href="https://github.com/zenmz/wa-desk/tags"><img src="https://img.shields.io/github/v/tag/zenmz/wa-desk?label=versi&color=059669" alt="Versi"></a>
+  <img src="https://img.shields.io/badge/macOS-14%2B-111827" alt="macOS 14+">
+  <img src="https://img.shields.io/badge/Homebrew-zenmz%2Ftap%2Fwa--desk-f59e0b" alt="Homebrew">
+  <img src="https://img.shields.io/badge/app-1.3%20MB-34D399" alt="Ukuran app">
+</p>
 
-Formula build dari source saat install (~10 detik, butuh Command Line Tools),
-jadi tidak ada masalah Gatekeeper. Update: `brew upgrade wa-desk`.
-Versi terbaru dari `main`: `brew install --HEAD zenmz/tap/wa-desk`.
+---
 
-## Build
+## Kenapa WA Desk
 
-Butuh Command Line Tools (`xcode-select --install`). Tidak butuh Xcode.app.
+WhatsApp Desktop resmi berbasis Electron: membawa Chromium sendiri, berat di RAM dan menyisakan
+ratusan MB di disk. WA Desk hanya membungkus **web.whatsapp.com** dalam `WKWebView` (engine yang sama
+dengan Safari) dan menambah fitur native yang tidak ada di WhatsApp Web.
 
-    ./build.sh && open "WA Desk.app"
+| | WA Desk | WhatsApp Desktop resmi |
+|---|---|---|
+| Ukuran app | **1,3 MB** | ratusan MB (Electron) |
+| RAM, 1 akun login | **~90 MB** (app + helper WebKit, RSS saat baru dibuka) | belum diukur di mesin ini |
+| Data lokal | 204 MB (cache WebKit, 1 akun) | 570 MB sisa container di mesin ini |
+| Dependency | 0 | Electron + Chromium |
 
-`build.sh` mengompilasi `*.swift`, menggambar icon dari `icon/make-icon.swift`
-(CoreGraphics → `sips` → `iconutil`), membungkus `WA Desk.app`, codesign ad-hoc,
-lalu menjalankan `wa-desk --selftest` (fungsi murni: badge, filter akun, nama file download,
-aturan link luar, notifikasi, jadwal senyap, bookmark, tag; store JSON; sintaks dan API skrip inject lewat JavaScriptCore).
+Angka diukur 2026-10-01 di macOS 26 pada 1 akun; RAM WebKit bertambah seiring banyaknya chat/media yang dibuka.
 
-## Pakai
+## Fitur
 
-- Cmd+N: akun baru (tab). Ctrl+Tab / Ctrl+Shift+Tab: pindah akun (item Show Next/Previous Tab di menu Window ditambahkan otomatis oleh macOS).
-- File → Hapus Akun Ini…: hapus sesi + cache akun yang sedang dilihat.
-- Cmd+W menyembunyikan window; pesan tetap masuk. Keluar dengan Cmd+Q.
-- Klik ikon Dock menampilkan lagi window yang disembunyikan.
-- Cmd+= / Cmd+- / Cmd+0 zoom. Cmd+R reload.
+**Inti**
+- Notifikasi native macOS, klik membuka chat yang benar. Badge unread di Dock.
+- Multi-akun: tiap akun satu tab native, sesi login terpisah.
+- Panggilan suara/video (WebRTC WebKit), download ke `~/Downloads`, attach file, drag-drop.
+- Link luar terbuka di browser default. Tutup window hanya menyembunyikan; pesan tetap masuk.
 
-Data per akun disimpan WebKit per UUID, biasanya di `~/Library/WebKit/dev.zen.wa/`
-(kalau tidak ada: `find ~/Library -maxdepth 3 -name 'dev.zen.wa*'`).
-Daftar akun di `defaults read dev.zen.wa accounts`.
+**Tweaks (menu Tweaks)**
+- **Blur Privasi**: tiap baris chat, pesan, dan header dikaburkan sendiri-sendiri; yang di bawah kursor jelas.
+- **Bookmark pesan** tanpa batas (pengganti pin yang dibatasi server WhatsApp), panel native, lompat ke pesan.
+- **Tag chat** dengan titik warna dan filter, lokal di Mac.
+- **Senyap**: senyap sekarang (30 menit, 1 jam, 2 jam, sampai dimatikan) dan jadwal senyap dengan editor jam.
+- Sembunyikan banner "Download WhatsApp for Mac", hotkey global tampil/sembunyi, selalu di atas, CSS kustom.
+
+## Instalasi
+
+### Homebrew (disarankan)
+
+```sh
+brew install zenmz/tap/wa-desk
+ln -sfn "$(brew --prefix)/opt/wa-desk/WA Desk.app" "/Applications/WA Desk.app"
+```
+
+Formula membangun dari source saat install (sekitar 15 detik, butuh Command Line Tools:
+`xcode-select --install`). Karena dibangun di Mac sendiri, tidak ada peringatan Gatekeeper.
+
+- Update: `brew upgrade wa-desk`
+- Versi pengembangan dari `main`: `brew install --HEAD zenmz/tap/wa-desk`
+- Uninstall: `brew uninstall wa-desk && rm "/Applications/WA Desk.app"`. Data login ada di
+  `~/Library/WebKit/dev.zen.wa`, bookmark/tag di `~/Library/Application Support/wa-desk`,
+  setting di `defaults delete dev.zen.wa`.
+
+### Dari source
+
+```sh
+git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
+./build.sh && open "WA Desk.app"
+```
+
+### Launch pertama
+
+1. Scan QR dari HP seperti WhatsApp Web biasa.
+2. macOS akan minta izin **notifikasi** saat launch, **folder Downloads** saat download pertama,
+   dan **kamera/mikrofon** saat call pertama.
+3. Tanpa internet saat launch window kosong; tekan ⌘R setelah online.
+
+## Cara pakai
+
+| Aksi | Shortcut |
+|---|---|
+| Akun baru (tab) | ⌘N |
+| Pindah akun | ⌃Tab / ⌃⇧Tab |
+| Hapus akun yang sedang dilihat (sesi + cache) | File → Hapus Akun Ini… |
+| Sembunyikan window (pesan tetap masuk) | ⌘W; klik ikon Dock untuk kembali |
+| Tampil/sembunyikan app dari mana saja | ⌥⌘W (global) |
+| Zoom | ⌘= / ⌘- / ⌘0 |
+| Reload | ⌘R |
+| Keluar | ⌘Q |
 
 ## Tweaks
 
-Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di Mac ini.
-
-- **Blur Privasi** (⇧⌘B): tiap baris chat, tiap pesan, dan header chat dikaburkan sendiri-sendiri; yang di bawah kursor jelas.
-- **Sembunyikan Banner Download**: banner "Download WhatsApp for Mac" disembunyikan (default aktif).
-- **Bookmark Pesan** (⌘D): arahkan kursor ke pesan, tekan ⌘D. **Tampilkan Bookmark…** (⇧⌘D) membuka
-  panel; Return/dobel-klik membuka chat dan melompat ke pesan (kalau pesannya sudah dimuat), ⌫ menghapus.
-  Pengganti pin: batas pin ditegakkan server WhatsApp dan tidak bisa dinaikkan.
-- **Tag Chat Ini**: beri tag (nama + warna) ke chat yang terbuka; titik warna muncul di daftar chat.
-  **Filter Tag** meredupkan chat lain. Tag dicocokkan dengan judul chat: mengganti nama kontak melepas tag.
-- **Senyap ▸**: **Senyap Sekarang** (30 menit / 1 jam / 2 jam / sampai dimatikan) untuk meeting; ⇧⌘M = senyap
-  1 jam atau matikan. **Jadwal Senyap** menahan notifikasi pada jam tertentu; **Atur Jadwal…** memilih jam Mulai/Selesai
-  (boleh lewat tengah malam). Judul menu jadi "Senyap ●" saat sedang senyap. Badge Dock tetap jalan; senyap sementara
-  bertahan walau app di-restart.
-- **Muat Ulang CSS Kustom**: `~/.config/wa-desk/custom.css` disuntik ke halaman; ubah apa pun lewat CSS.
-- **Debug Selector**: toast jumlah elemen WhatsApp yang dikenali, dan tulis ringkasan struktur DOM ke
-  `~/Library/Application Support/wa-desk/debug-dom.txt`. Kalau ada ✗ atau banner masih muncul, file itu
-  yang dipakai untuk memperbarui selector di `Tweaks.swift`.
-- Window → **Selalu di Atas** (⌥⌘T): berlaku per window akun yang aktif. Hotkey global **⌥⌘W** menampilkan/menyembunyikan
-  app dari mana saja. Catatan: selama WA Desk jalan, ⌥⌘W di app lain (yang biasanya "Close All") ikut tertangkap; ubah
-  konstanta di `GlobalHotkey` (`Tweaks.swift`) kalau mengganggu.
-
-Data bookmark dan tag ada di `~/Library/Application Support/wa-desk/<id akun>/` (JSON).
-Semua Tweaks hanya CSS, pembacaan DOM, dan klik sintetis setara klik user; tidak ada otomasi kirim pesan.
-
-## Launch pertama
-
-- macOS akan minta izin notifikasi saat launch, akses folder Downloads saat download pertama, dan kamera/mic saat call pertama.
-- Tanpa internet saat launch window kosong; Cmd+R memuat ulang setelah online.
-- `build.sh` menandatangani ad-hoc: tiap build ulang = identitas baru bagi macOS, jadi izin kamera/mic bisa ditanya lagi setelah rebuild. Pakai identitas self-signed di Keychain kalau ini mengganggu.
-
-## Tidak ada (sengaja)
-
-App icon, auto-update, ikon menubar, launch at login, screen share saat call
-(`getDisplayMedia` tidak tersedia di WKWebView).
-
-## Checklist smoke test
-
-Jalankan setelah login; centang yang lulus.
-
-- [ ] QR login, daftar chat muncul
-- [ ] Kirim teks, foto, dokumen, voice note; Cmd+C/V di kolom chat
-- [ ] Download media → ~/Downloads, nama unik kalau bentrok
-- [ ] Link luar terbuka di browser default
-- [ ] Badge Dock naik saat unread, hilang saat dibaca
-- [ ] Notifikasi saat app background dan saat window disembunyikan; klik membuka chat
-- [ ] Tidak ada notifikasi saat chat sedang dilihat
-- [ ] Voice call dan video call dua arah
-- [ ] Akun kedua (Cmd+N), pindah tab, notifikasi & badge gabungan
-- [ ] Hapus akun; hapus akun terakhir membuat akun baru
-- [ ] Cmd+Q lalu buka lagi: semua akun masih login, posisi window sama
-- [ ] Tweaks: blur ⇧⌘B on/off, jelas saat hover
-- [ ] Tweaks: banner download hilang (halaman QR dan setelah login)
-- [ ] Tweaks: ⌘D pada pesan → toast "Disimpan" → muncul di panel; Return → chat terbuka, pesan berkilat
-- [ ] Tweaks: bookmark chat yang di luar layar → toast yang sesuai
-- [ ] Tweaks: tag baru → titik warna; Filter Tag → chat lain redup; hapus tag
-- [ ] Tweaks: ⌥⌘W dari app lain; Selalu di Atas
-- [ ] Tweaks: Jadwal Senyap aktif → pesan masuk tanpa banner, badge naik
-- [ ] Tweaks: ⇧⌘M → toast "Senyap sampai HH:MM", pesan masuk tanpa banner; ⇧⌘M lagi → matikan
-- [ ] Tweaks: Atur Jadwal… → simpan → judul "Jadwal Senyap HH:MM–HH:MM" berubah dan tercentang
-- [ ] Tweaks: `custom.css` berisi `#pane-side{background:#111}` → Muat Ulang → terlihat
-- [ ] Tweaks: Debug Selector semua ✓
-
-## Ukuran
-
-Angka WA Desk diukur di halaman QR (sebelum login, satu akun); ukur ulang setelah login.
-
-| App | RAM | Storage |
+| Fitur | Cara | Catatan |
 |---|---|---|
-| WA Desk (halaman QR, 1 akun) | 55.5 MB | app 1.1M (icon 880K), data 41M |
-| WhatsApp resmi (sisa container) | belum diukur (app tidak terpasang) | 161M + 409M (Containers + Group Containers) |
+| Blur Privasi | ⇧⌘B | per baris chat, per pesan, dan header; hover untuk melihat |
+| Sembunyikan Banner Download | Tweaks → centang | aktif secara default |
+| Bookmark Pesan | arahkan kursor ke pesan, ⌘D | **Tampilkan Bookmark…** ⇧⌘D: Return/dobel-klik buka chat dan lompat ke pesan, ⌫ hapus |
+| Tag Chat Ini | Tweaks → Tag Chat Ini | nama + warna; titik warna di daftar chat; **Filter Tag** meredupkan chat lain |
+| Senyap sekarang | ⇧⌘M, atau Tweaks → Senyap → Senyap Sekarang | 30 menit / 1 jam / 2 jam / sampai dimatikan; ⇧⌘M lagi mematikan |
+| Jadwal Senyap | Tweaks → Senyap → Atur Jadwal… | jam Mulai/Selesai, boleh lewat tengah malam; judul menu "Senyap ●" saat aktif |
+| Selalu di Atas | ⌥⌘T | per window akun |
+| CSS kustom | `~/.config/wa-desk/custom.css` lalu Tweaks → Muat Ulang CSS Kustom | ubah tampilan WhatsApp Web sesuka hati |
+| Debug Selector | Tweaks → Debug Selector | toast jumlah elemen yang dikenali + tulis `debug-dom.txt` (lihat Troubleshooting) |
+
+Senyap hanya menahan banner notifikasi; badge Dock tetap berjalan. Senyap sementara tersimpan dan
+tetap berlaku setelah app di-restart.
+
+## Privasi & keamanan
+
+- Tidak ada server perantara, telemetri, atau akun tambahan. Lalu lintas langsung ke WhatsApp seperti
+  membuka web.whatsapp.com di Safari.
+- Tweaks hanya menyuntik CSS, membaca DOM, dan mengirim klik sintetis setara klik pengguna. Tidak ada
+  otomasi kirim pesan atau akses ke protokol WhatsApp.
+- Bookmark dan tag disimpan sebagai JSON lokal per akun; tidak disinkronkan ke mana pun.
+- App ditandatangani ad-hoc oleh `build.sh` di Mac sendiri. Setiap build ulang menjadi identitas baru
+  bagi macOS, jadi izin kamera/mikrofon bisa ditanya lagi setelah upgrade.
+
+## Batasan
+
+- Tidak bisa menaikkan batas pin atau mengubah hal lain yang ditegakkan server WhatsApp; bookmark adalah
+  pengganti lokal.
+- Tag dicocokkan dengan nama chat: mengganti nama kontak melepas tagnya.
+- Screen share saat call tidak tersedia (`getDisplayMedia` tidak ada di WKWebView).
+- Hotkey ⌥⌘W menimpa shortcut "Close All" app lain selama WA Desk berjalan; ganti konstanta di
+  `GlobalHotkey` (`Tweaks.swift`) kalau mengganggu.
+- WhatsApp Web bisa mengubah struktur halamannya sewaktu-waktu. Fitur inti tidak terpengaruh; Tweaks
+  yang bergantung DOM (blur, bookmark, tag, banner) mungkin perlu penyesuaian selector.
+
+## Troubleshooting
+
+- **Blur/bookmark/tag tidak bekerja atau banner masih muncul**: jalankan Tweaks → Debug Selector. Toast
+  menampilkan `pane:✓ main:✓ rows:N …`; ✗ atau `rows:0` berarti selector perlu diperbarui. Ringkasan DOM
+  ditulis ke `~/Library/Application Support/wa-desk/debug-dom.txt`; lampirkan di issue.
+- **Window kosong**: offline saat launch, tekan ⌘R.
+- **Notifikasi tidak muncul**: cek System Settings → Notifications → WA Desk, dan apakah Senyap aktif
+  (judul menu "Senyap ●").
+- **Mulai dari nol**: ⌘Q, lalu hapus `~/Library/WebKit/dev.zen.wa`, `~/Library/Application Support/wa-desk`,
+  dan `defaults delete dev.zen.wa`.
+
+## Untuk pengembang
+
+```
+main.swift           entry
+Helpers.swift        fungsi murni (semua dites --selftest)
+Selftest.swift       selftest: helper, store JSON, sintaks + API skrip inject (JavaScriptCore)
+Accounts.swift       daftar akun di UserDefaults
+AccountWindow.swift  window + WKWebView per akun, navigasi, download, notifikasi, jembatan tweak()
+AppDelegate.swift    menu, badge, hotkey, aksi Tweaks
+Tweaks.swift         setting, model Bookmark/Tag, store JSON, dan seluruh JS/CSS yang tahu DOM WhatsApp
+BookmarksPanel.swift panel bookmark
+icon/make-icon.swift icon digambar dengan CoreGraphics saat build
+```
+
+`./build.sh` mengompilasi semua file dengan `swiftc`, menggambar icon, membungkus `WA Desk.app`,
+codesign ad-hoc, lalu menjalankan `wa-desk --selftest`; build gagal kalau selftest gagal.
+Semua ketergantungan pada DOM WhatsApp sengaja dikumpulkan di `Tweaks.swift` (`tweaksScript`,
+`tweaksStyle`). Desain dan plan ada di `docs/superpowers/`. Checklist uji manual: [docs/smoke-test.md](docs/smoke-test.md).
+
+Rilis: naikkan versi di `Info.plist`, tag `vX.Y.Z`, lalu perbarui `url` + `sha256` di
+[zenmz/homebrew-tap](https://github.com/zenmz/homebrew-tap).
+
+## Status
+
+Proyek personal yang dipakai harian; bukan produk resmi dan tidak berafiliasi dengan WhatsApp/Meta.
+Laporan masalah lewat GitHub Issues, sertakan `debug-dom.txt` bila terkait Tweaks.
