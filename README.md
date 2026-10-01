@@ -6,7 +6,7 @@
 
 <p align="center">
   WhatsApp Desktop ringan untuk macOS. Engine WebKit bawaan sistem, tanpa Electron, tanpa dependency.<br>
-  <sub>A lightweight native WhatsApp Web wrapper for macOS with privacy blur, local bookmarks, chat tags, quiet hours, and multi-account tabs.</sub>
+  <sub>A lightweight native WhatsApp Web wrapper for macOS with privacy blur, local bookmarks, chat tags, quiet hours, and multi-account in one window.</sub>
 </p>
 
 <p align="center">
@@ -106,7 +106,7 @@ git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
 | Tag Chat Ini | Tweaks → Tag Chat Ini | nama + warna; titik warna di daftar chat; **Filter Tag** meredupkan chat lain |
 | Senyap sekarang | ⇧⌘M, atau Tweaks → Senyap → Senyap Sekarang | 30 menit / 1 jam / 2 jam / sampai dimatikan; ⇧⌘M lagi mematikan |
 | Jadwal Senyap | Tweaks → Senyap → Atur Jadwal… | jam Mulai/Selesai, boleh lewat tengah malam; judul menu "Senyap ●" saat aktif |
-| Selalu di Atas | ⌥⌘T | per window akun |
+| Selalu di Atas | ⌥⌘T | untuk window utama |
 | CSS kustom | `~/.config/wa-desk/custom.css` lalu Tweaks → Muat Ulang CSS Kustom | ubah tampilan WhatsApp Web sesuka hati |
 | Debug Selector | Tweaks → Debug Selector | toast jumlah elemen yang dikenali + tulis `debug-dom.txt` (lihat Troubleshooting) |
 
