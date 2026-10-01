@@ -44,6 +44,56 @@ func uniqueURL(in dir: URL, name: String, exists: (URL) -> Bool) -> URL {
 /// Jangan tampilkan notifikasi kalau user sedang melihat window akun itu (hindari dobel).
 func shouldNotify(appActive: Bool, windowKey: Bool) -> Bool { !(appActive && windowKey) }
 
+// MARK: Tweaks
+
+let tagPalette = ["#34D399", "#60A5FA", "#F472B6", "#FBBF24", "#A78BFA", "#F87171"]
+
+/// "22:00" → 1320, "7:5" → 425. Di luar 00:00–23:59 atau bukan angka → nil.
+func minutesOfDay(_ hhmm: String) -> Int? {
+    let parts = hhmm.split(separator: ":", omittingEmptySubsequences: false)
+    guard parts.count == 2, let h = Int(parts[0]), let m = Int(parts[1]),
+          (0...23).contains(h), (0...59).contains(m) else { return nil }
+    return h * 60 + m
+}
+
+func minutesOfDay(_ date: Date, calendar: Calendar = .current) -> Int {
+    let c = calendar.dateComponents([.hour, .minute], from: date)
+    return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+}
+
+/// Jadwal senyap. Mati, jam invalid, atau start == end → tidak aktif. Rentang boleh lewat tengah malam.
+func dndActive(minutesNow now: Int, start: String, end: String, enabled: Bool) -> Bool {
+    guard enabled, let s = minutesOfDay(start), let e = minutesOfDay(end), s != e else { return false }
+    return s < e ? (now >= s && now < e) : (now >= s || now < e)
+}
+
+/// Bookmark dari dict hasil __wadesk.capture(). Butuh id dan chat non-kosong; sisanya opsional.
+func bookmark(fromCapture d: [String: Any], savedAt: Date) -> Bookmark? {
+    guard let id = d["id"] as? String, !id.isEmpty,
+          let chat = d["chat"] as? String, !chat.isEmpty else { return nil }
+    return Bookmark(id: id, chat: chat, jid: d["jid"] as? String,
+                    text: String((d["text"] as? String ?? "").prefix(300)),
+                    time: d["time"] as? String ?? "",
+                    fromMe: d["fromMe"] as? Bool ?? false, savedAt: savedAt)
+}
+
+func tagColorValid(_ hex: String) -> Bool { tagPalette.contains(hex) }
+
+func tagNameValid(_ name: String) -> Bool {
+    let t = name.trimmingCharacters(in: .whitespaces)
+    return (1...24).contains(t.count) && !t.contains("\n")
+}
+
+/// Judul chat → warna tag pertama yang masih ada di daftar tag. Chat tanpa tag valid tidak masuk.
+func tagMap(_ data: TagData) -> [String: String] {
+    let colors = Dictionary(data.tags.map { ($0.name, $0.color) }, uniquingKeysWith: { a, _ in a })
+    var out: [String: String] = [:]
+    for (chat, names) in data.chats {
+        if let c = names.lazy.compactMap({ colors[$0] }).first { out[chat] = c }
+    }
+    return out
+}
+
 /// WKWebView tidak punya window.Notification. Shim ini meneruskan ke native lewat message handler "notify".
 let notificationShim = """
 (() => {

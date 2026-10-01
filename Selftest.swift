@@ -42,6 +42,55 @@ func selftest() -> Int32 {
     check(shouldNotify(appActive: true, windowKey: false) == true, "shouldNotify tab lain")
     check(shouldNotify(appActive: false, windowKey: true) == true, "shouldNotify app background")
 
+    // Jadwal senyap
+    check(minutesOfDay("22:00") == 1320, "minutesOfDay 22:00")
+    check(minutesOfDay("7:5") == 425, "minutesOfDay 7:5")
+    check(minutesOfDay("25:00") == nil, "minutesOfDay jam >23")
+    check(minutesOfDay("ab") == nil, "minutesOfDay non-angka")
+    check(dndActive(minutesNow: 1380, start: "22:00", end: "07:00", enabled: false) == false, "dnd disabled")
+    check(dndActive(minutesNow: 600, start: "09:00", end: "17:00", enabled: true) == true, "dnd dalam rentang")
+    check(dndActive(minutesNow: 1020, start: "09:00", end: "17:00", enabled: true) == false, "dnd batas akhir eksklusif")
+    check(dndActive(minutesNow: 1380, start: "22:00", end: "07:00", enabled: true) == true, "dnd malam 23:00")
+    check(dndActive(minutesNow: 180, start: "22:00", end: "07:00", enabled: true) == true, "dnd malam 03:00")
+    check(dndActive(minutesNow: 720, start: "22:00", end: "07:00", enabled: true) == false, "dnd siang 12:00")
+    check(dndActive(minutesNow: 600, start: "10:00", end: "10:00", enabled: true) == false, "dnd start==end")
+    check(dndActive(minutesNow: 600, start: "x", end: "07:00", enabled: true) == false, "dnd jam invalid")
+
+    // Bookmark dari hasil capture()
+    let now = Date(timeIntervalSince1970: 1_700_000_000)
+    let full = bookmark(fromCapture: ["id": "true_628@c.us_ABC", "chat": "Budi", "jid": "628@c.us", "text": "halo",
+                                      "time": "[10:00, 1/10/2026]", "fromMe": true], savedAt: now)
+    check(full == Bookmark(id: "true_628@c.us_ABC", chat: "Budi", jid: "628@c.us", text: "halo",
+                           time: "[10:00, 1/10/2026]", fromMe: true, savedAt: now), "bookmark lengkap")
+    check(bookmark(fromCapture: ["chat": "Budi"], savedAt: now) == nil, "bookmark tanpa id")
+    check(bookmark(fromCapture: ["id": "x", "chat": ""], savedAt: now) == nil, "bookmark chat kosong")
+    check(bookmark(fromCapture: ["id": "x", "chat": "Budi", "text": String(repeating: "a", count: 400)], savedAt: now)?.text.count == 300, "bookmark teks dipotong 300")
+    check(bookmark(fromCapture: ["id": "x", "chat": "Budi", "fromMe": "yes"], savedAt: now)?.fromMe == false, "bookmark fromMe bukan Bool")
+
+    // Tag
+    check(tagColorValid("#34D399") && !tagColorValid("#000000"), "tagColorValid")
+    check(tagNameValid("Kerja") && tagNameValid(" a ") && !tagNameValid("  ") && !tagNameValid(String(repeating: "a", count: 25)), "tagNameValid")
+    let td = TagData(tags: [Tag(name: "Kerja", color: "#60A5FA"), Tag(name: "Keluarga", color: "#F472B6")],
+                     chats: ["Budi": ["Hilang", "Kerja", "Keluarga"], "Ani": ["Hilang"]])
+    check(tagMap(td) == ["Budi": "#60A5FA"], "tagMap: tag terhapus dilewati, tag pertama menang")
+
+    // Store: roundtrip JSON dan file korup
+    let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("wadesk-selftest-\(UUID().uuidString)")
+    let s1 = TweakStore(accountID: "acc", base: tmp)
+    s1.add(full!)
+    s1.update { $0 = td }
+    let s2 = TweakStore(accountID: "acc", base: tmp)
+    check(s2.bookmarks == [full!] && s2.tags == td, "store roundtrip")
+    s2.add(Bookmark(id: "true_628@c.us_ABC", chat: "Budi", jid: nil, text: "edit", time: "", fromMe: false, savedAt: now))
+    check(s2.bookmarks.count == 1 && s2.bookmarks[0].text == "edit", "store add id sama mengganti")
+    s2.remove(bookmarkID: "true_628@c.us_ABC")
+    check(TweakStore(accountID: "acc", base: tmp).bookmarks.isEmpty, "store remove tersimpan")
+    try? Data("{bukan json".utf8).write(to: tmp.appendingPathComponent("wa-desk/acc/tags.json"))
+    let s3 = TweakStore(accountID: "acc", base: tmp)
+    let baks = ((try? FileManager.default.contentsOfDirectory(atPath: tmp.appendingPathComponent("wa-desk/acc").path)) ?? [])
+        .filter { $0.hasPrefix("tags.json.bak-") }
+    check(s3.tags == TagData() && baks.count == 1, "store korup → .bak + kosong")
+    try? FileManager.default.removeItem(at: tmp)
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1
