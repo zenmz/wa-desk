@@ -19,10 +19,10 @@ Butuh Command Line Tools (`xcode-select --install`). Tidak butuh Xcode.app.
 
     ./build.sh && open "WA Desk.app"
 
-`build.sh` mengompilasi `main.swift`, menggambar icon dari `icon/make-icon.swift`
+`build.sh` mengompilasi `*.swift`, menggambar icon dari `icon/make-icon.swift`
 (CoreGraphics → `sips` → `iconutil`), membungkus `WA Desk.app`, codesign ad-hoc,
-lalu menjalankan `wa-desk --selftest` (fungsi murni: parsing badge, filter akun,
-nama file download, aturan link luar, aturan notifikasi).
+lalu menjalankan `wa-desk --selftest` (fungsi murni: badge, filter akun, nama file download,
+aturan link luar, notifikasi, jadwal senyap, bookmark, tag; store JSON; sintaks dan API skrip inject lewat JavaScriptCore).
 
 ## Pakai
 
@@ -53,7 +53,9 @@ Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di
 - **Muat Ulang CSS Kustom**: `~/.config/wa-desk/custom.css` disuntik ke halaman; ubah apa pun lewat CSS.
 - **Debug Selector**: cetak jumlah elemen WhatsApp yang dikenali ke stderr dan toast. Kalau ada ✗,
   struktur WhatsApp Web berubah dan selector di `Tweaks.swift` perlu diperbarui.
-- Window → **Selalu di Atas** (⌥⌘T). Hotkey global **⌥⌘W** menampilkan/menyembunyikan app dari mana saja.
+- Window → **Selalu di Atas** (⌥⌘T): berlaku per window akun yang aktif. Hotkey global **⌥⌘W** menampilkan/menyembunyikan
+  app dari mana saja. Catatan: selama WA Desk jalan, ⌥⌘W di app lain (yang biasanya "Close All") ikut tertangkap; ubah
+  konstanta di `GlobalHotkey` (`Tweaks.swift`) kalau mengganggu.
 
 Data bookmark dan tag ada di `~/Library/Application Support/wa-desk/<id akun>/` (JSON).
 Semua Tweaks hanya CSS, pembacaan DOM, dan klik sintetis setara klik user; tidak ada otomasi kirim pesan.
