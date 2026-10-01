@@ -83,6 +83,12 @@ func muteActive(now: Date, until: Date?) -> Bool { until.map { $0 > now } ?? fal
 /// "HH:mm" dari menit-dalam-hari (hasil pemilih jam), dibungkus ke 0–23.
 func hhmm(fromMinutes m: Int) -> String { String(format: "%02d:%02d", (m / 60) % 24, ((m % 60) + 60) % 60) }
 
+/// Nama tampilan akun: nama kustom (setelah trim) atau "Akun N" dari urutan daftar (index 0-based).
+func accountLabel(custom: String?, index: Int) -> String {
+    let c = (custom ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    return c.isEmpty ? "Akun \(index + 1)" : c
+}
+
 func tagColorValid(_ hex: String) -> Bool { tagPalette.contains(hex) }
 
 func tagNameValid(_ name: String) -> Bool {

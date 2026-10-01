@@ -2,9 +2,11 @@ import Cocoa
 import WebKit
 import UserNotifications
 
-// MARK: - AccountWindow
+// MARK: - Account
 
-final class AccountWindow: NSWindowController, NSWindowDelegate {
+/// Satu akun WhatsApp: WKWebView + data store + state Tweaks. Tidak punya window sendiri;
+/// MainWindow menumpuk webView semua akun dan menampilkan satu. Akun yang tersembunyi tetap hidup.
+final class Account: NSObject {
     let id: String
     let webView: WKWebView
     private(set) var unread = 0
@@ -15,6 +17,10 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     private(set) var bookmarksPanel: BookmarksPanel?
     /// Judul chat yang sedang terbuka, dilaporkan JS lewat handler "wadesk". nil = tidak ada chat.
     private(set) var openChatTitle: String?
+    /// Judul halaman WhatsApp ("(3) WhatsApp"); kosong sebelum dimuat.
+    private(set) var pageTitle = ""
+
+    private var delegate: AppDelegate? { NSApp.delegate as? AppDelegate }
 
     init(id: String) {
         self.id = id
@@ -31,38 +37,38 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
             source: tweaksScript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.allowsMagnification = true
-
-        let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1100, height: 750),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
-            backing: .buffered, defer: false)
-        super.init(window: win)
+        webView.autoresizingMask = [.width, .height]
+        super.init()
         webView.configuration.userContentController.add(self, name: "notify")
         webView.configuration.userContentController.add(self, name: "wadesk")
-
-        win.title = "WhatsApp"
-        win.isReleasedWhenClosed = false
-        win.tabbingMode = .preferred
-        win.tabbingIdentifier = "wa"
-        win.contentView = webView
-        win.delegate = self
         webView.navigationDelegate = self
         webView.uiDelegate = self
-        win.center()
-        win.setFrameAutosaveName("win-\(id)")
 
         titleObservation = webView.observe(\.title, options: [.new]) { [weak self] wv, _ in
             guard let self else { return }
-            let title = wv.title ?? ""
-            self.window?.title = title.isEmpty ? "WhatsApp" : title
-            self.unread = unreadCount(title)
-            (NSApp.delegate as? AppDelegate)?.refreshBadge()
+            self.pageTitle = wv.title ?? ""
+            self.unread = unreadCount(self.pageTitle)
+            self.delegate?.accountTitleChanged(self)
         }
         webView.load(URLRequest(url: waHome))
     }
 
+    deinit { titleObservation?.invalidate() }
+
+    /// Nama tampilan: nama kustom atau "Akun N" menurut urutan di daftar akun.
+    var name: String {
+        let index = delegate?.accounts.firstIndex { $0 === self } ?? 0
+        return accountLabel(custom: AccountNames.custom(for: id), index: index)
+    }
+
+    /// Judul window saat akun ini aktif, mis. "Kerja · (3) WhatsApp".
+    var windowTitle: String { "\(name) · \(pageTitle.isEmpty ? "WhatsApp" : pageTitle)" }
+
+    /// User sedang melihat akun ini: webView-nya yang tampil dan window utama key.
+    var isBeingViewed: Bool { !webView.isHidden && webView.window?.isKeyWindow == true }
+
     /// Panggil `__wadesk.<fn>(...)` dengan argumen terstruktur (callAsyncJavaScript), tanpa interpolasi string.
-    /// `args` urut sesuai parameter fungsi JS. Hasil `undefined` → nil.
+    /// `args` urut sesuai parameter fungsi JS. Hasil `undefined`/`null` → nil.
     func tweak(_ fn: String, _ args: KeyValuePairs<String, Any> = [:], completion: ((Any?) -> Void)? = nil) {
         let call = "return await __wadesk.\(fn)(\(args.map(\.key).joined(separator: ", ")))"
         let dict = Dictionary(uniqueKeysWithValues: args.map { ($0.key, $0.value) })
@@ -91,12 +97,8 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
 
     func pushTags() { tweak("setTags", ["map": tagColors(store.tags)]) }
 
-    /// Window ini atau panel bookmark-nya. Dipakai AppDelegate.current supaya aksi menu mengenai akun yang benar
-    /// saat panel yang sedang key.
-    func owns(_ w: NSWindow?) -> Bool {
-        guard let w else { return false }
-        return w === window || w === bookmarksPanel
-    }
+    /// Panel bookmark akun ini. Dipakai AppDelegate.current supaya aksi menu mengenai akun yang benar saat panel key.
+    func owns(_ w: NSWindow?) -> Bool { w != nil && w === bookmarksPanel }
 
     func showBookmarksPanel() {
         if bookmarksPanel == nil {
@@ -107,9 +109,9 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
         bookmarksPanel?.makeKeyAndOrderFront(nil)
     }
 
-    /// Buka chat bookmark lalu lompat ke pesannya; setiap kegagalan dilaporkan lewat toast.
+    /// Tampilkan akun ini, buka chat bookmark, lompat ke pesannya; setiap kegagalan dilaporkan lewat toast.
     func open(bookmark b: Bookmark) {
-        window?.makeKeyAndOrderFront(nil)
+        delegate?.show(self)
         tweak("openChat", ["title": b.chat, "jid": b.jid ?? ""]) { [weak self] result in
             guard let self else { return }
             switch result as? String {
@@ -124,22 +126,11 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
             }
         }
     }
-
-    required init?(coder: NSCoder) { fatalError("tidak dipakai") }
-
-    deinit { titleObservation?.invalidate() }
-
-    /// Tutup window = sembunyikan. Pesan tetap masuk. Keluar hanya lewat Cmd+Q.
-    func windowShouldClose(_ sender: NSWindow) -> Bool {
-        sender.orderOut(nil)
-        return false
-    }
 }
-
 
 // MARK: - Navigasi, download, media
 
-extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
+extension Account: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate {
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { applyTweaks() }
 
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
@@ -208,7 +199,7 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
     /// Tombol attach di WhatsApp → NSOpenPanel.
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters,
                  initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?) -> Void) {
-        guard let win = window else { return completionHandler(nil) }
+        guard let win = webView.window else { return completionHandler(nil) }
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection
         panel.canChooseDirectories = parameters.allowsDirectories
@@ -219,7 +210,7 @@ extension AccountWindow: WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate 
 
 // MARK: - Notifikasi
 
-extension AccountWindow: WKScriptMessageHandler {
+extension Account: WKScriptMessageHandler {
     func userContentController(_ ucc: WKUserContentController, didReceive message: WKScriptMessage) {
         guard message.frameInfo.isMainFrame,
               message.frameInfo.securityOrigin.host == "web.whatsapp.com",
@@ -230,7 +221,7 @@ extension AccountWindow: WKScriptMessageHandler {
             return
         }
         guard let nid = body["id"] as? String, Int(nid) != nil else { return }
-        guard shouldNotify(appActive: NSApp.isActive, windowKey: window?.isKeyWindow ?? false) else { return }
+        guard shouldNotify(appActive: NSApp.isActive, windowKey: isBeingViewed) else { return }
         // Jadwal senyap / senyap sementara hanya menahan banner; badge Dock tetap diperbarui lewat judul halaman.
         guard !dndActive(minutesNow: minutesOfDay(Date()), start: TweakSettings.dndStart,
                          end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled),

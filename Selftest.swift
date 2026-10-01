@@ -113,6 +113,10 @@ func selftest() -> Int32 {
     for fn in ["setBlur", "setHideBanner", "setCustomCSS", "setFilter", "setTags", "toast", "currentChat", "jumpTo", "dump"] {
         check(ctx.evaluateScript("typeof __wadesk.\(fn)")?.toString() == "function", "JS __wadesk.\(fn)")
     }
+    // Nama akun
+    check(accountLabel(custom: nil, index: 0) == "Akun 1", "accountLabel default")
+    check(accountLabel(custom: " \n ", index: 1) == "Akun 2", "accountLabel spasi/newline → default")
+    check(accountLabel(custom: " Kerja ", index: 5) == "Kerja", "accountLabel kustom di-trim")
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1

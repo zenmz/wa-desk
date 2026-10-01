@@ -5,9 +5,12 @@ import UserNotifications
 // MARK: - AppDelegate
 
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate, NSMenuDelegate, NSMenuItemValidation {
-    private(set) var accounts: [AccountWindow] = []
+    private(set) var accounts: [Account] = []
+    let mainWindow = MainWindow()
     /// Dibangun ulang tiap dibuka (menuNeedsUpdate) supaya centang dan daftar tag selalu segar.
     private let tweaksMenu = NSMenu(title: "Tweaks")
+    /// Dibangun ulang tiap dibuka: satu item per akun ⌘1–⌘9 dengan unread, centang akun aktif.
+    private let accountsMenu = NSMenu(title: "Akun")
 
     func applicationDidFinishLaunching(_ note: Notification) {
         buildMenu()
@@ -15,46 +18,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
         Accounts.pendingRemoval().forEach(purgeDataStore)
-        for id in Accounts.all() { open(id: id) }
+        for id in Accounts.all() { attach(id: id) }
+        let last = UserDefaults.standard.string(forKey: "activeAccount")
+        show(accounts.first { $0.id == last } ?? accounts[0])
         NSApp.activate()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// Klik ikon Dock → tampilkan lagi akun yang windownya disembunyikan.
+    /// Klik ikon Dock → tampilkan lagi window utama.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        accounts.filter { $0.window?.isVisible == false }.forEach(present)
+        mainWindow.showWindow(nil)
+        mainWindow.window?.makeKeyAndOrderFront(nil)
         return true
     }
 
     // MARK: akun
 
+    /// Buat akun dan tumpuk webView-nya di window utama (belum ditampilkan).
     @discardableResult
-    func open(id: String) -> AccountWindow {
-        let account = AccountWindow(id: id)
+    func attach(id: String) -> Account {
+        let account = Account(id: id)
         accounts.append(account)
-        present(account)
+        mainWindow.attach(account)
         return account
     }
 
-    /// Tampilkan window akun. Kalau ada window akun lain yang terlihat, gabung sebagai tab.
-    func present(_ account: AccountWindow) {
-        guard let win = account.window else { return }
-        if !win.isVisible, win.tabGroup == nil,
-           let anchor = accounts.compactMap(\.window).first(where: { $0.isVisible && $0 !== win }) {
-            anchor.addTabbedWindow(win, ordered: .above)
-        }
-        win.makeKeyAndOrderFront(nil)
-        win.makeFirstResponder(account.webView)
+    /// Tampilkan akun di window utama dan bawa window ke depan; ingat sebagai akun aktif.
+    func show(_ account: Account) {
+        mainWindow.show(account)
+        mainWindow.showWindow(nil)
+        mainWindow.window?.makeKeyAndOrderFront(nil)
+        UserDefaults.standard.set(account.id, forKey: "activeAccount")
     }
 
-    /// Akun yang window-nya (atau panel bookmark-nya) sedang key; fallback akun pertama.
-    var current: AccountWindow? {
-        accounts.first { $0.owns(NSApp.keyWindow) } ?? accounts.first
+    /// Akun yang panel bookmark-nya key; kalau tidak, akun yang sedang tampil.
+    var current: Account? {
+        accounts.first { $0.owns(NSApp.keyWindow) } ?? mainWindow.active ?? accounts.first
     }
 
     func refreshBadge() {
         NSApp.dockTile.badgeLabel = badgeLabel(total: accounts.reduce(0) { $0 + $1.unread })
+    }
+
+    /// Judul halaman akun berubah (unread): badge Dock, dan judul window kalau akun itu yang tampil.
+    func accountTitleChanged(_ account: Account) {
+        refreshBadge()
+        if mainWindow.active === account { mainWindow.refreshTitle() }
     }
 
     /// Hapus data store akun yang sudah dihapus. Dipanggil saat hapus akun dan saat launch,
@@ -85,7 +95,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         if let accountID = info["account"] as? String,
            let account = accounts.first(where: { $0.id == accountID }) {
             NSApp.activate()
-            present(account)
+            show(account)
             if let nid = info["nid"] as? String, Int(nid) != nil {
                 account.webView.evaluateJavaScript("window.__waNotifClick('\(nid)')")
             }
@@ -107,6 +117,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     // MARK: Tweaks
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === accountsMenu { rebuildAccountsMenu(); return }
         guard menu === tweaksMenu else { return }
         menu.removeAllItems()
         func item(_ title: String, _ action: Selector, _ key: String = "",
@@ -200,6 +211,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(muteHolder)
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
         menu.addItem(item("Debug Selector", #selector(debugSelectors)))
+    }
+
+    private func rebuildAccountsMenu() {
+        let menu = accountsMenu
+        menu.removeAllItems()
+        for (i, a) in accounts.enumerated() {
+            let title = a.unread > 0 ? "\(a.name)  (\(a.unread))" : a.name
+            let item = NSMenuItem(title: title, action: #selector(switchAccount(_:)), keyEquivalent: i < 9 ? String(i + 1) : "")
+            item.representedObject = a.id
+            item.state = mainWindow.active === a ? .on : .off
+            menu.addItem(item)
+        }
+        menu.addItem(.separator())
+        let next = NSMenuItem(title: "Akun Berikutnya", action: #selector(nextAccount), keyEquivalent: "\t")
+        next.keyEquivalentModifierMask = .control
+        let prev = NSMenuItem(title: "Akun Sebelumnya", action: #selector(previousAccount), keyEquivalent: "\t")
+        prev.keyEquivalentModifierMask = [.control, .shift]
+        menu.addItem(next)
+        menu.addItem(prev)
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Akun Baru", action: #selector(newAccount), keyEquivalent: "n"))
+        menu.addItem(NSMenuItem(title: "Ganti Nama Akun…", action: #selector(renameAccount), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Hapus Akun Ini…", action: #selector(removeAccount), keyEquivalent: ""))
     }
 
     /// Panggil fungsi __wadesk di semua akun.
@@ -310,29 +344,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc func toggleAlwaysOnTop() {
-        guard let w = current?.window else { return }
+        guard let w = mainWindow.window else { return }
         w.level = w.level == .floating ? .normal : .floating
     }
 
-    /// Centang "Selalu di Atas" mengikuti window key. Item lain selalu aktif.
+    /// Centang "Selalu di Atas" mengikuti window utama. Item lain selalu aktif.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         if item.action == #selector(toggleAlwaysOnTop) {
-            item.state = current?.window?.level == .floating ? .on : .off
-            return current?.window != nil
+            item.state = mainWindow.window?.level == .floating ? .on : .off
         }
         return true
     }
 
-    /// ⌥⌘W: app aktif dengan window terlihat → sembunyikan; selain itu → aktifkan dan tampilkan akun yang tersembunyi.
+    /// ⌥⌘W: app aktif dengan window terlihat → sembunyikan; selain itu → aktifkan dan tampilkan window utama.
     func toggleVisibility() {
-        // Sembunyikan hanya kalau memang ada window akun yang terlihat; setelah Cmd+W semua window
-        // tersembunyi walau app masih aktif, jadi ⌥⌘W harus menampilkan, bukan hide (yang tidak terlihat).
-        let anyVisible = accounts.contains { $0.window?.isVisible == true }
-        if NSApp.isActive && anyVisible {
+        let visible = mainWindow.window?.isVisible == true
+        if NSApp.isActive && visible {
             NSApp.hide(nil)
         } else {
             NSApp.activate()
-            accounts.filter { $0.window?.isVisible == false }.forEach(present)
+            mainWindow.showWindow(nil)
+            mainWindow.window?.makeKeyAndOrderFront(nil)
         }
     }
 
@@ -436,20 +468,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         acc.tweak("setFilter", ["color": acc.tagFilter])
     }
 
-    @objc func newAccount() { open(id: Accounts.add()) }
+    @objc func newAccount() { show(attach(id: Accounts.add())) }
 
-    /// Tombol "+" di tab bar macOS memanggil ini lewat responder chain.
-    @objc func newWindowForTab(_ sender: Any?) { newAccount() }
+    @objc func switchAccount(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let account = accounts.first(where: { $0.id == id }) else { return }
+        show(account)
+    }
+
+    @objc func nextAccount() { step(1) }
+    @objc func previousAccount() { step(-1) }
+
+    private func step(_ delta: Int) {
+        guard accounts.count > 1, let active = mainWindow.active,
+              let i = accounts.firstIndex(where: { $0 === active }) else { return }
+        show(accounts[(i + delta + accounts.count) % accounts.count])
+    }
+
+    @objc func renameAccount() {
+        guard let account = current else { return }
+        rename(account)
+    }
+
+    /// Dialog nama akun. Kosong = kembali ke nama otomatis "Akun N".
+    func rename(_ account: Account) {
+        let alert = NSAlert()
+        alert.messageText = "Nama akun"
+        alert.informativeText = "Kosongkan untuk kembali ke nama otomatis."
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        field.stringValue = AccountNames.custom(for: account.id) ?? ""
+        field.placeholderString = account.name
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Simpan")
+        alert.addButton(withTitle: "Batal")
+        alert.window.initialFirstResponder = field
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        AccountNames.set(name.isEmpty ? nil : String(name.prefix(24)), for: account.id)
+        mainWindow.refreshTitle()
+    }
 
     @objc func removeAccount() {
-        // Hanya akun yang windownya key; jangan tebak lewat fallback `current` saat semua tab disembunyikan.
-        guard let account = accounts.first(where: { $0.window?.isKeyWindow == true }), let win = account.window else {
+        guard let account = current else {
             NSSound.beep()
             return
         }
         let alert = NSAlert()
-        alert.messageText = "Hapus akun ini dari WA?"
-        alert.informativeText = "Sesi login dan cache akun ini di Mac ikut dihapus. Chat di HP tidak terpengaruh."
+        alert.messageText = "Hapus akun “\(account.name)” dari WA Desk?"
+        alert.informativeText = "Sesi login, cache, bookmark, dan tag akun ini di Mac ikut dihapus. Chat di HP tidak terpengaruh."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Hapus")
         alert.addButton(withTitle: "Batal")
@@ -457,16 +523,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         let id = account.id
+        let index = accounts.firstIndex { $0 === account } ?? 0
         account.webView.stopLoading()
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "notify")
         account.webView.configuration.userContentController.removeScriptMessageHandler(forName: "wadesk")
         account.bookmarksPanel?.close()
-        win.contentView = nil
-        win.close()
-        NSWindow.removeFrame(usingName: "win-\(id)")
+        mainWindow.detach(account)
         accounts.removeAll { $0 === account }
         Accounts.remove(id)
         Accounts.markPendingRemoval(id)
+        AccountNames.set(nil, for: id)
         // Alert menjanjikan data lokal akun dihapus: bookmark/tag ikut dihapus.
         try? FileManager.default.removeItem(at: account.store.dir)
         refreshBadge()
@@ -474,7 +540,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
             self?.purgeDataStore(id)
         }
-        if accounts.isEmpty { open(id: Accounts.all()[0]) }
+        if accounts.isEmpty { attach(id: Accounts.all()[0]) }
+        show(accounts[min(index, accounts.count - 1)])
     }
 
     private func buildMenu() {
@@ -500,11 +567,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             item("Quit WA Desk", #selector(NSApplication.terminate(_:)), "q"),
         ])
         _ = menu("File", [
-            item("Akun Baru", #selector(newAccount), "n"),
-            item("Hapus Akun Ini…", #selector(removeAccount)),
-            .separator(),
             item("Close", #selector(NSWindow.performClose(_:)), "w"),
         ])
+        accountsMenu.delegate = self
+        accountsMenu.autoenablesItems = false
+        let accountsHolder = NSMenuItem()
+        accountsHolder.submenu = accountsMenu
+        main.addItem(accountsHolder)
         // Selector standar responder chain: tanpa ini Cmd+C/V tidak jalan di WKWebView.
         _ = menu("Edit", [
             item("Undo", Selector(("undo:")), "z"),

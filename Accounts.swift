@@ -42,4 +42,17 @@ enum Accounts {
     }
 }
 
+/// Nama kustom akun. UserDefaults "accountNames": [id: nama]. nil = pakai "Akun N".
+enum AccountNames {
+    private static let key = "accountNames"
 
+    static func custom(for id: String) -> String? {
+        (UserDefaults.standard.dictionary(forKey: key) as? [String: String])?[id]
+    }
+
+    static func set(_ name: String?, for id: String) {
+        var d = (UserDefaults.standard.dictionary(forKey: key) as? [String: String]) ?? [:]
+        d[id] = name
+        UserDefaults.standard.set(d, forKey: key)
+    }
+}
