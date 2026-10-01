@@ -31,7 +31,14 @@ if [ "${DEV:-0}" = "1" ]; then
   plutil -replace CFBundleDisplayName -string "WA Desk Dev" "$APP/Contents/Info.plist"
 fi
 printf 'APPL????' > "$APP/Contents/PkgInfo"
-# Ad-hoc sign: TCC (kamera/mic) dan UNUserNotificationCenter butuh identitas bundle stabil.
-codesign --force --sign - "$APP"
+# Tanda tangan: pakai sertifikat "WA Desk Signing" kalau ada (identitas stabil antar build → Keychain/TCC tidak
+# bertanya ulang tiap upgrade; buat sekali dengan scripts/make-signing-cert.sh), kalau tidak ada: ad-hoc.
+IDENTITY="${WADESK_SIGN_IDENTITY:-WA Desk Signing}"
+if security find-identity -v -p codesigning 2>/dev/null | grep -q "\"$IDENTITY\"" \
+   && codesign --force --sign "$IDENTITY" --timestamp=none "$APP" 2>/dev/null; then
+  echo "signed with \"$IDENTITY\""
+else
+  codesign --force --sign - "$APP"
+fi
 "$APP/Contents/MacOS/wa-desk" --selftest
 echo "built $APP"

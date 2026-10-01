@@ -93,7 +93,7 @@ final class Account: NSObject {
         if let css = customCSS() { tweak("setCustomCSS", ["css": css]) }
         pushTags()
         tweak("setFilter", ["color": tagFilter])
-        tweak("setSilence", ["on": delegate?.silenced ?? false])
+        tweak("setSilence", ["on": blockPageAudio(silenced: delegate?.silenced ?? false, setting: TweakSettings.notifySound)])
         delegate?.pushPanelState(to: self)
     }
 
@@ -236,7 +236,10 @@ extension Account: WKScriptMessageHandler {
         let content = UNMutableNotificationContent()
         content.title = body["title"] as? String ?? ""
         content.body = body["body"] as? String ?? ""
-        // Tanpa suara native: WhatsApp Web sudah memutar suara sendiri.
+        // Suara: "web" membiarkan WhatsApp Web yang bunyi; selain itu suara halaman diblokir dan banner memakai suara ini.
+        if let name = notificationSoundName(setting: TweakSettings.notifySound, customFile: customSoundFileName()) {
+            content.sound = name == "default" ? .default : UNNotificationSound(named: UNNotificationSoundName(name))
+        }
         content.userInfo = ["account": id, "nid": nid]
         let tag = body["tag"] as? String ?? ""
         // Tag sama (chat sama) → notifikasi lama diganti, tidak menumpuk.

@@ -79,7 +79,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// Dorong status senyap ke semua halaman; panel ikut diperbarui kalau status berubah (mis. senyap kedaluwarsa).
     func pushSilence() {
         let on = silenced
-        broadcast("setSilence", ["on": on])
+        broadcast("setSilence", ["on": blockPageAudio(silenced: on, setting: TweakSettings.notifySound)])
         if on != lastSilenced {
             lastSilenced = on
             pushPanelState()
@@ -119,6 +119,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             },
             "hasOpenChat": open != nil,
             "filter": account.tagFilter,
+            "sound": TweakSettings.notifySound,
+            "customSound": customSoundFileName() ?? "",
         ]
     }
 
@@ -149,6 +151,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         case .muteOff: muteOff()
         case .toggleDND: toggleDND()
         case .editDND: editQuietHours()
+        case .setSound(let v): setNotifySound(v)
+        case .testSound: testNotificationSound()
         case .toggleOnTop: toggleAlwaysOnTop()
         case .reloadCSS: reloadCustomCSS()
         case .debug: debugSelectors()
@@ -298,6 +302,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let muteHolder = NSMenuItem(title: (temporary || scheduled) ? "Senyap ●" : "Senyap", action: nil, keyEquivalent: "")
         muteHolder.submenu = muteMenu
         menu.addItem(muteHolder)
+        // Suara banner notifikasi.
+        let soundMenu = NSMenu(title: "Suara Notifikasi")
+        soundMenu.autoenablesItems = false
+        let custom = customSoundFileName()
+        for (value, title) in [("system", "Sistem (macOS)"), ("web", "WhatsApp Web"), ("none", "Tanpa Suara"),
+                               ("custom", custom.map { "Kustom (\($0))" } ?? "Kustom (taruh ~/Library/Sounds/wa-desk.aiff)")] {
+            let i = item(title, #selector(chooseNotifySound(_:)), on: TweakSettings.notifySound == value)
+            i.representedObject = value
+            i.isEnabled = value != "custom" || custom != nil
+            soundMenu.addItem(i)
+        }
+        soundMenu.addItem(.separator())
+        soundMenu.addItem(item("Tes Suara", #selector(testNotificationSound)))
+        let soundHolder = NSMenuItem(title: "Suara Notifikasi", action: nil, keyEquivalent: "")
+        soundHolder.submenu = soundMenu
+        menu.addItem(soundHolder)
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
         menu.addItem(item("Debug Selector", #selector(debugSelectors)))
     }
@@ -371,6 +391,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 FileHandle.standardError.write(Data("tulis debug-dom.txt gagal: \(error.localizedDescription)\n".utf8))
             }
         }
+    }
+
+    // MARK: suara notifikasi
+
+    @objc func chooseNotifySound(_ sender: NSMenuItem) {
+        guard let v = sender.representedObject as? String else { return }
+        setNotifySound(v)
+    }
+
+    func setNotifySound(_ value: String) {
+        guard notifySoundOptions.contains(value) else { return }
+        TweakSettings.notifySound = value
+        pushSilence()
+        pushPanelState()
+    }
+
+    /// Kirim notifikasi uji lewat jalur yang sama dengan pesan masuk (mengabaikan senyap supaya suaranya terdengar).
+    @objc func testNotificationSound() {
+        let content = UNMutableNotificationContent()
+        content.title = "WA Desk"
+        content.body = "Tes suara notifikasi"
+        if let name = notificationSoundName(setting: TweakSettings.notifySound, customFile: customSoundFileName()) {
+            content.sound = name == "default" ? .default : UNNotificationSound(named: UNNotificationSoundName(name))
+        }
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "wadesk-test", content: content, trigger: nil))
     }
 
     @objc func toggleDND() {

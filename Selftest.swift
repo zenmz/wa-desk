@@ -140,9 +140,19 @@ func selftest() -> Int32 {
     let noArg: [(String, PanelAction)] = [("newAccount", .newAccount), ("removeAccount", .removeAccount), ("toggleBlur", .toggleBlur),
         ("toggleBanner", .toggleBanner), ("bookmark", .bookmark), ("showBookmarks", .showBookmarks), ("newTag", .newTag),
         ("muteOff", .muteOff), ("toggleDND", .toggleDND), ("editDND", .editDND), ("toggleOnTop", .toggleOnTop),
-        ("reloadCSS", .reloadCSS), ("debug", .debug)]
+        ("reloadCSS", .reloadCSS), ("debug", .debug), ("testSound", .testSound)]
     for (name, expected) in noArg { check(panelAction(from: ["action": name]) == expected, "panelAction \(name)") }
     check(panelAction(from: ["action": "renameAccount", "id": uid]) == .renameAccount(uid), "panelAction rename")
+    check(panelAction(from: ["action": "setSound", "value": "none"]) == .setSound("none"), "panelAction setSound")
+    check(panelAction(from: ["action": "setSound", "value": "loud"]) == nil, "panelAction setSound di luar pilihan")
+    // Suara notifikasi
+    check(notificationSoundName(setting: "system", customFile: nil) == "default", "sound system")
+    check(notificationSoundName(setting: "web", customFile: "wa-desk.aiff") == nil, "sound web → tanpa suara native")
+    check(notificationSoundName(setting: "none", customFile: nil) == nil, "sound none")
+    check(notificationSoundName(setting: "custom", customFile: "wa-desk.aiff") == "wa-desk.aiff", "sound custom")
+    check(notificationSoundName(setting: "custom", customFile: nil) == "default", "sound custom tanpa file → default")
+    check(blockPageAudio(silenced: false, setting: "web") == false && blockPageAudio(silenced: true, setting: "web") == true
+          && blockPageAudio(silenced: false, setting: "system") == true, "blockPageAudio")
     if failed.isEmpty { print("selftest OK"); return 0 }
     for f in failed { FileHandle.standardError.write(Data("FAIL: \(f)\n".utf8)) }
     return 1

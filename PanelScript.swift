@@ -178,6 +178,10 @@ let panelScript = #"""
       '<button class="wd-chip" data-act="mute" data-min="30">30 mnt</button><button class="wd-chip" data-act="mute" data-min="60">1 jam</button>' +
       '<button class="wd-chip" data-act="mute" data-min="120">2 jam</button><button class="wd-chip" data-act="mute" data-min="0">∞</button></div>' +
       toggleHTML("Jadwal senyap " + esc(dnd.start) + "–" + esc(dnd.end), "toggleDND", dnd.enabled, '<button class="wd-mini" data-act="editDND" title="Atur jadwal">⚙</button>') +
+      '<div class="wd-sub">Suara notifikasi' + (s.customSound ? ' <span class="wd-muted">(' + esc(s.customSound) + ')</span>' : "") + "</div>" +
+      '<div class="wd-chips">' + [["system", "Sistem"], ["web", "WhatsApp Web"], ["none", "Tanpa suara"], ["custom", "Kustom"]].map(([v, l]) =>
+        '<button class="wd-chip' + (s.sound === v ? " on" : "") + '" data-act="setSound" data-value="' + v + '"' + (v === "custom" && !s.customSound ? " disabled" : "") + ">" + l + "</button>").join("") +
+      '<button class="wd-chip" data-act="testSound">▶ Tes</button></div>' +
       toggleHTML('Selalu di atas <span class="wd-kbd">⌥⌘T</span>', "toggleOnTop", s.onTop) +
       '<div class="wd-row wd-link" data-act="reloadCSS">Muat ulang CSS kustom</div>' +
       '<div class="wd-row wd-link" data-act="debug">Debug selector</div>';
@@ -189,6 +193,7 @@ let panelScript = #"""
     if (el.dataset.tag != null) msg.tag = el.dataset.tag;
     if (el.dataset.color != null) msg.color = el.dataset.color;
     if (el.dataset.min != null) msg.min = Number(el.dataset.min);
+    if (el.dataset.value != null) msg.value = el.dataset.value;
     return msg;
   }
   function onClick(e) {

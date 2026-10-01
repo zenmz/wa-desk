@@ -89,11 +89,25 @@ func accountLabel(custom: String?, index: Int) -> String {
     return c.isEmpty ? "Akun \(index + 1)" : c
 }
 
+/// Nama file suara untuk UNNotificationSound dari setting + ketersediaan file kustom.
+/// nil = tanpa suara native ("web" dan "none", atau "custom" tanpa file → "default" dipakai sebagai cadangan).
+func notificationSoundName(setting: String, customFile: String?) -> String? {
+    switch setting {
+    case "system": return "default"
+    case "custom": return customFile ?? "default"
+    default: return nil
+    }
+}
+
+/// Suara halaman WhatsApp diblokir kalau sedang senyap atau suara banner bukan "web".
+func blockPageAudio(silenced: Bool, setting: String) -> Bool { silenced || setting != "web" }
+
 /// Aksi dari panel di halaman. Hanya daftar ini yang diterima; argumen divalidasi di panelAction(from:).
 enum PanelAction: Equatable {
     case open, switchAccount(String), newAccount, renameAccount(String), removeAccount
     case toggleBlur, toggleBanner, bookmark, showBookmarks, toggleTag(String), newTag, setFilter(String)
     case mute(Int), muteOff, toggleDND, editDND, toggleOnTop, reloadCSS, debug
+    case setSound(String), testSound
 }
 
 /// Parse pesan panel `{action, id?, tag?, color?, min?}`. Input dari halaman web: aksi tak dikenal atau argumen
@@ -127,6 +141,10 @@ func panelAction(from d: [String: Any]) -> PanelAction? {
     case "toggleOnTop": return .toggleOnTop
     case "reloadCSS": return .reloadCSS
     case "debug": return .debug
+    case "setSound":
+        guard let v = d["value"] as? String, notifySoundOptions.contains(v) else { return nil }
+        return .setSound(v)
+    case "testSound": return .testSound
     default: return nil
     }
 }

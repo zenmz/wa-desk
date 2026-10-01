@@ -53,6 +53,20 @@ enum TweakSettings {
         get { let t = d.double(forKey: "muteUntil"); return t > 0 ? Date(timeIntervalSince1970: t) : nil }
         set { d.set(newValue?.timeIntervalSince1970 ?? 0, forKey: "muteUntil") }
     }
+    /// Suara banner notifikasi: "system" (suara macOS, suara halaman diblokir), "web" (biarkan WhatsApp Web
+    /// yang bunyi), "none", atau "custom" (~/Library/Sounds/wa-desk.{aiff,caf,wav}).
+    static var notifySound: String {
+        get { let v = d.string(forKey: "notifySound") ?? "system"; return notifySoundOptions.contains(v) ? v : "system" }
+        set { d.set(newValue, forKey: "notifySound") }
+    }
+}
+
+let notifySoundOptions = ["system", "web", "none", "custom"]
+
+/// File suara kustom pertama yang ada: ~/Library/Sounds/wa-desk.aiff|caf|wav (UNNotificationSound mencarinya di sana).
+func customSoundFileName() -> String? {
+    let dir = NSHomeDirectory() + "/Library/Sounds/"
+    return ["wa-desk.aiff", "wa-desk.caf", "wa-desk.wav"].first { FileManager.default.fileExists(atPath: dir + $0) }
 }
 
 // MARK: - Store per akun

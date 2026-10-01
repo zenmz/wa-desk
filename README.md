@@ -106,6 +106,7 @@ git clone https://github.com/zenmz/wa-desk.git && cd wa-desk
 | Tag Chat Ini | Tweaks → Tag Chat Ini | nama + warna; titik warna di daftar chat; **Filter Tag** meredupkan chat lain |
 | Senyap sekarang | ⇧⌘M, atau Tweaks → Senyap → Senyap Sekarang | 30 menit / 1 jam / 2 jam / sampai dimatikan; ⇧⌘M lagi mematikan |
 | Jadwal Senyap | Tweaks → Senyap → Atur Jadwal… | jam Mulai/Selesai, boleh lewat tengah malam; judul menu "Senyap ●" saat aktif |
+| Suara Notifikasi | Tweaks → Suara Notifikasi, atau chip di panel | **Sistem** (default): suara WhatsApp Web diblokir, banner pakai suara macOS; **WhatsApp Web**; **Tanpa Suara**; **Kustom**: taruh `~/Library/Sounds/wa-desk.aiff` (atau .caf/.wav, ≤30 detik). "Tes Suara" mengirim notifikasi uji |
 | Selalu di Atas | ⌥⌘T | untuk window utama |
 | CSS kustom | `~/.config/wa-desk/custom.css` lalu Tweaks → Muat Ulang CSS Kustom | ubah tampilan WhatsApp Web sesuka hati |
 | Debug Selector | Tweaks → Debug Selector | toast jumlah elemen yang dikenali + tulis `debug-dom.txt` (lihat Troubleshooting) |
@@ -121,8 +122,12 @@ tetap berlaku setelah app di-restart.
 - Tweaks hanya menyuntik CSS, membaca DOM, dan mengirim klik sintetis setara klik pengguna. Tidak ada
   otomasi kirim pesan atau akses ke protokol WhatsApp.
 - Bookmark dan tag disimpan sebagai JSON lokal per akun; tidak disinkronkan ke mana pun.
-- App ditandatangani ad-hoc oleh `build.sh` di Mac sendiri. Setiap build ulang menjadi identitas baru
-  bagi macOS, jadi izin kamera/mikrofon bisa ditanya lagi setelah upgrade.
+- App ditandatangani di Mac sendiri oleh `build.sh`. Tanpa sertifikat, tanda tangannya ad-hoc: setiap upgrade
+  adalah identitas baru bagi macOS, jadi izin kamera/mikrofon dan dialog Keychain "WA Desk WebCrypto Master Key"
+  (kunci sesi WhatsApp Web) ditanya lagi. Jalankan sekali `scripts/make-signing-cert.sh` (membuat sertifikat
+  self-signed "WA Desk Signing" di Keychain login), lalu `brew reinstall wa-desk`: build berikutnya memakai
+  identitas yang sama dan dialog itu berhenti muncul (muncul satu kali lagi saat beralih). Tanpa clone repo:
+  `curl -fsSL https://raw.githubusercontent.com/zenmz/wa-desk/main/scripts/make-signing-cert.sh | sh`
 
 ## Batasan
 
