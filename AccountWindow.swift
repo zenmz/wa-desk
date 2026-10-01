@@ -12,6 +12,7 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     let store: TweakStore
     /// Warna tag yang sedang difilter di akun ini ("" = semua). Sesi saja.
     var tagFilter = ""
+    private var bookmarksPanel: BookmarksPanel?
 
     init(id: String) {
         self.id = id
@@ -86,6 +87,33 @@ final class AccountWindow: NSWindowController, NSWindowDelegate {
     }
 
     func pushTags() { tweak("setTags", ["map": tagMap(store.tags)]) }
+
+    func showBookmarksPanel() {
+        if bookmarksPanel == nil {
+            let p = BookmarksPanel(store: store)
+            p.onOpen = { [weak self] b in self?.open(bookmark: b) }
+            bookmarksPanel = p
+        }
+        bookmarksPanel?.makeKeyAndOrderFront(nil)
+    }
+
+    /// Buka chat bookmark lalu lompat ke pesannya; setiap kegagalan dilaporkan lewat toast.
+    func open(bookmark b: Bookmark) {
+        window?.makeKeyAndOrderFront(nil)
+        tweak("openChat", ["title": b.chat, "jid": b.jid ?? ""]) { [weak self] result in
+            guard let self else { return }
+            switch result as? String {
+            case "clicked":
+                self.tweak("jumpTo", ["id": b.id, "title": b.chat]) { ok in
+                    if ok as? Bool != true { self.tweak("toast", ["msg": "Pesan lama, scroll manual"]) }
+                }
+            case "navigated":
+                self.tweak("toast", ["msg": "Membuka chat…"])
+            default:
+                self.tweak("toast", ["msg": "Chat tidak terlihat di daftar"])
+            }
+        }
+    }
 
     required init?(coder: NSCoder) { fatalError("tidak dipakai") }
 

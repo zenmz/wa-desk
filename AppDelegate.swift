@@ -119,6 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         menu.addItem(item("Blur Privasi", #selector(toggleBlur), "B", [.command, .shift], on: TweakSettings.blur))
         menu.addItem(item("Sembunyikan Banner Download", #selector(toggleHideBanner), on: TweakSettings.hideBanner))
         menu.addItem(.separator())
+        menu.addItem(item("Bookmark Pesan", #selector(bookmarkMessage), "d"))
+        menu.addItem(item("Tampilkan Bookmark…", #selector(showBookmarks), "D", [.command, .shift]))
+        menu.addItem(.separator())
         menu.addItem(item("Jadwal Senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd)",
                           #selector(toggleDND), on: TweakSettings.dndEnabled))
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
@@ -186,6 +189,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             accounts.filter { $0.window?.isVisible == false }.forEach(present)
         }
     }
+
+    @objc func bookmarkMessage() {
+        guard let acc = current else { return }
+        acc.tweak("capture") { v in
+            guard let d = v as? [String: Any], let b = bookmark(fromCapture: d, savedAt: Date()) else {
+                acc.tweak("toast", ["msg": "Arahkan kursor ke pesan dulu"])
+                return
+            }
+            acc.store.add(b)
+            acc.tweak("toast", ["msg": "Disimpan"])
+        }
+    }
+
+    @objc func showBookmarks() { current?.showBookmarksPanel() }
 
     @objc func newAccount() { open(id: Accounts.add()) }
 
