@@ -70,6 +70,8 @@ func selftest() -> Int32 {
     // Tag
     check(tagColorValid("#34D399") && !tagColorValid("#000000"), "tagColorValid")
     check(tagNameValid("Kerja") && tagNameValid(" a ") && !tagNameValid("  ") && !tagNameValid(String(repeating: "a", count: 25)), "tagNameValid")
+    check(!tagNameValid("a\r\nb") && !tagNameValid("a\u{2028}b"), "tagNameValid CRLF")
+    check(!tagNameValid("\t\t") && tagNameValid(String(repeating: "a", count: 24)), "tagNameValid tab-only dan 24 karakter")
     let td = TagData(tags: [Tag(name: "Kerja", color: "#60A5FA"), Tag(name: "Keluarga", color: "#F472B6")],
                      chats: ["Budi": ["Hilang", "Kerja", "Keluarga"], "Ani": ["Hilang"]])
     check(tagMap(td) == ["Budi": "#60A5FA"], "tagMap: tag terhapus dilewati, tag pertama menang")

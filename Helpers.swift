@@ -80,8 +80,8 @@ func bookmark(fromCapture d: [String: Any], savedAt: Date) -> Bookmark? {
 func tagColorValid(_ hex: String) -> Bool { tagPalette.contains(hex) }
 
 func tagNameValid(_ name: String) -> Bool {
-    let t = name.trimmingCharacters(in: .whitespaces)
-    return (1...24).contains(t.count) && !t.contains("\n")
+    let t = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (1...24).contains(t.count) && t.rangeOfCharacter(from: .newlines) == nil
 }
 
 /// Judul chat → warna tag pertama yang masih ada di daftar tag. Chat tanpa tag valid tidak masuk.
