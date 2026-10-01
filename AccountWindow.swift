@@ -231,9 +231,10 @@ extension AccountWindow: WKScriptMessageHandler {
         }
         guard let nid = body["id"] as? String, Int(nid) != nil else { return }
         guard shouldNotify(appActive: NSApp.isActive, windowKey: window?.isKeyWindow ?? false) else { return }
-        // Jadwal senyap hanya menahan banner; badge Dock tetap diperbarui lewat judul halaman.
+        // Jadwal senyap / senyap sementara hanya menahan banner; badge Dock tetap diperbarui lewat judul halaman.
         guard !dndActive(minutesNow: minutesOfDay(Date()), start: TweakSettings.dndStart,
-                         end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled) else { return }
+                         end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled),
+              !muteActive(now: Date(), until: TweakSettings.muteUntil) else { return }
 
         let content = UNMutableNotificationContent()
         content.title = body["title"] as? String ?? ""

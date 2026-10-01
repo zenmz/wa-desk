@@ -66,8 +66,9 @@ BookmarksPanel.swift  NSPanel + NSTableView
 | `dndEnabled` | Bool | false | jadwal senyap aktif |
 | `dndStart` | String | `"22:00"` | awal senyap, `HH:mm` |
 | `dndEnd` | String | `"07:00"` | akhir senyap, `HH:mm`; boleh lewat tengah malam |
+| `muteUntil` | Double (unix) | 0 | senyap sementara sampai waktu ini; 0 = tidak aktif; `distantFuture` = sampai dimatikan |
 
-Jam DND diubah lewat `defaults write dev.zen.wa dndStart 23:30` (tanpa UI). Filter tag dan
+Jam DND diubah lewat menu Tweaks → Senyap → Atur Jadwal… (dua `NSDatePicker` jam), atau `defaults write dev.zen.wa dndStart 23:30`. Filter tag dan
 "selalu di atas" tidak dipersist (sesi saja).
 
 ### 4.2 Per akun: `~/Library/Application Support/wa-desk/<accountId>/`
@@ -162,7 +163,7 @@ Semua fungsi `try/catch` internal; gagal → kembalikan `null`/`false`, tidak me
 | Tag Chat Ini ▸ | | submenu: satu item per tag (centang = chat terbuka punya tag itu; klik toggle), pemisah, **Tag Baru…** (NSAlert: field nama + popup warna → buat tag & langsung pasang ke chat terbuka), **Hapus Tag ▸** (submenu per tag → NSAlert konfirmasi → hapus tag dari daftar dan dari semua chat). Tidak ada chat terbuka → item tag disabled |
 | Filter Tag ▸ | | **Semua** + satu item radio per tag → `setFilter(warna atau "")` |
 | — | | |
-| Jadwal Senyap 22:00–07:00 | — | toggle `dndEnabled` (centang); judul menampilkan jam dari defaults |
+| Senyap ▸ | ⇧⌘M | submenu: "Senyap 1 Jam" / "Senyap sampai HH:MM — Matikan" (⇧⌘M), Senyap Sekarang ▸ (30 menit, 1 jam, 2 jam, sampai dimatikan → `muteUntil`), pemisah, Jadwal Senyap HH:MM–HH:MM (toggle `dndEnabled`), Atur Jadwal… (dialog jam Mulai/Selesai, simpan + aktifkan). Judul "Senyap ●" saat jadwal atau senyap sementara aktif |
 | Muat Ulang CSS Kustom | — | baca `~/.config/wa-desk/custom.css` → `setCustomCSS` ke semua akun; tidak ada file → toast "Tidak ada ~/.config/wa-desk/custom.css" |
 | Debug Selector | — | `debug()` → cetak JSON ke stderr dan `toast` ringkas (`pane:✓ main:✓ rows:42 msgs:30 banner:0`) |
 

@@ -47,9 +47,10 @@ Menu **Tweaks** menambah fitur yang tidak ada di WhatsApp Web; semuanya lokal di
   Pengganti pin: batas pin ditegakkan server WhatsApp dan tidak bisa dinaikkan.
 - **Tag Chat Ini**: beri tag (nama + warna) ke chat yang terbuka; titik warna muncul di daftar chat.
   **Filter Tag** meredupkan chat lain. Tag dicocokkan dengan judul chat: mengganti nama kontak melepas tag.
-- **Jadwal Senyap**: notifikasi ditahan pada jam yang ditentukan; badge tetap. Jam diubah lewat
-  `defaults write dev.zen.wa dndStart 23:30` dan `defaults write dev.zen.wa dndEnd 06:00` (format HH:mm,
-  boleh lewat tengah malam), lalu nyalakan di menu.
+- **Senyap ▸**: **Senyap Sekarang** (30 menit / 1 jam / 2 jam / sampai dimatikan) untuk meeting; ⇧⌘M = senyap
+  1 jam atau matikan. **Jadwal Senyap** menahan notifikasi pada jam tertentu; **Atur Jadwal…** memilih jam Mulai/Selesai
+  (boleh lewat tengah malam). Judul menu jadi "Senyap ●" saat sedang senyap. Badge Dock tetap jalan; senyap sementara
+  bertahan walau app di-restart.
 - **Muat Ulang CSS Kustom**: `~/.config/wa-desk/custom.css` disuntik ke halaman; ubah apa pun lewat CSS.
 - **Debug Selector**: toast jumlah elemen WhatsApp yang dikenali, dan tulis ringkasan struktur DOM ke
   `~/Library/Application Support/wa-desk/debug-dom.txt`. Kalau ada ✗ atau banner masih muncul, file itu
@@ -94,6 +95,8 @@ Jalankan setelah login; centang yang lulus.
 - [ ] Tweaks: tag baru → titik warna; Filter Tag → chat lain redup; hapus tag
 - [ ] Tweaks: ⌥⌘W dari app lain; Selalu di Atas
 - [ ] Tweaks: Jadwal Senyap aktif → pesan masuk tanpa banner, badge naik
+- [ ] Tweaks: ⇧⌘M → toast "Senyap sampai HH:MM", pesan masuk tanpa banner; ⇧⌘M lagi → matikan
+- [ ] Tweaks: Atur Jadwal… → simpan → judul "Jadwal Senyap HH:MM–HH:MM" berubah dan tercentang
 - [ ] Tweaks: `custom.css` berisi `#pane-side{background:#111}` → Muat Ulang → terlihat
 - [ ] Tweaks: Debug Selector semua ✓
 

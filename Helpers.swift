@@ -77,6 +77,12 @@ func bookmark(fromCapture d: [String: Any], savedAt: Date) -> Bookmark? {
                     fromMe: d["fromMe"] as? Bool ?? false, savedAt: savedAt)
 }
 
+/// Senyap sementara: aktif selama `until` masih di depan `now`. nil = tidak ada senyap sementara.
+func muteActive(now: Date, until: Date?) -> Bool { until.map { $0 > now } ?? false }
+
+/// "HH:mm" dari menit-dalam-hari (hasil pemilih jam), dibungkus ke 0–23.
+func hhmm(fromMinutes m: Int) -> String { String(format: "%02d:%02d", (m / 60) % 24, ((m % 60) + 60) % 60) }
+
 func tagColorValid(_ hex: String) -> Bool { tagPalette.contains(hex) }
 
 func tagNameValid(_ name: String) -> Bool {

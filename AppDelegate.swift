@@ -169,8 +169,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         filterHolder.submenu = filterMenu
         menu.addItem(filterHolder)
         menu.addItem(.separator())
-        menu.addItem(item("Jadwal Senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd)",
-                          #selector(toggleDND), on: TweakSettings.dndEnabled))
+        // Senyap: sementara (sekarang) + jadwal.
+        let now = Date()
+        let scheduled = dndActive(minutesNow: minutesOfDay(now), start: TweakSettings.dndStart,
+                                  end: TweakSettings.dndEnd, enabled: TweakSettings.dndEnabled)
+        let temporary = muteActive(now: now, until: TweakSettings.muteUntil)
+        let muteMenu = NSMenu(title: "Senyap")
+        muteMenu.autoenablesItems = false
+        if temporary, let until = TweakSettings.muteUntil {
+            muteMenu.addItem(item("Senyap \(muteUntilLabel(until)) — Matikan", #selector(muteOff), "M", [.command, .shift]))
+        } else {
+            muteMenu.addItem(item("Senyap 1 Jam", #selector(muteOneHour), "M", [.command, .shift]))
+        }
+        let nowMenu = NSMenu(title: "Senyap Sekarang")
+        nowMenu.autoenablesItems = false
+        for (title, minutes) in [("30 Menit", 30), ("1 Jam", 60), ("2 Jam", 120), ("Sampai Dimatikan", 0)] {
+            let i = item(title, #selector(muteFor(_:)))
+            i.representedObject = minutes
+            nowMenu.addItem(i)
+        }
+        let nowHolder = NSMenuItem(title: "Senyap Sekarang", action: nil, keyEquivalent: "")
+        nowHolder.submenu = nowMenu
+        muteMenu.addItem(nowHolder)
+        muteMenu.addItem(.separator())
+        muteMenu.addItem(item("Jadwal Senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd)",
+                              #selector(toggleDND), on: TweakSettings.dndEnabled))
+        muteMenu.addItem(item("Atur Jadwal…", #selector(editQuietHours)))
+        let muteHolder = NSMenuItem(title: (temporary || scheduled) ? "Senyap ●" : "Senyap", action: nil, keyEquivalent: "")
+        muteHolder.submenu = muteMenu
+        menu.addItem(muteHolder)
         menu.addItem(item("Muat Ulang CSS Kustom", #selector(reloadCustomCSS)))
         menu.addItem(item("Debug Selector", #selector(debugSelectors)))
     }
@@ -222,6 +249,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     @objc func toggleDND() { TweakSettings.dndEnabled.toggle() }
+
+    // MARK: senyap sementara
+
+    func muteUntilLabel(_ until: Date) -> String {
+        if until == .distantFuture { return "sampai dimatikan" }
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return "sampai \(f.string(from: until))"
+    }
+
+    @objc func muteFor(_ sender: NSMenuItem) {
+        let minutes = sender.representedObject as? Int ?? 60
+        let until: Date = minutes == 0 ? .distantFuture : Date().addingTimeInterval(TimeInterval(minutes * 60))
+        TweakSettings.muteUntil = until
+        current?.tweak("toast", ["msg": "Senyap \(muteUntilLabel(until))"])
+    }
+
+    @objc func muteOneHour() {
+        let until = Date().addingTimeInterval(3600)
+        TweakSettings.muteUntil = until
+        current?.tweak("toast", ["msg": "Senyap \(muteUntilLabel(until))"])
+    }
+
+    @objc func muteOff() {
+        TweakSettings.muteUntil = nil
+        current?.tweak("toast", ["msg": "Senyap dimatikan"])
+    }
+
+    /// Dialog dua pemilih jam (Mulai/Selesai); menyimpan jadwal dan langsung mengaktifkannya.
+    @objc func editQuietHours() {
+        let alert = NSAlert()
+        alert.messageText = "Jadwal Senyap"
+        alert.informativeText = "Notifikasi ditahan dari jam Mulai sampai Selesai (boleh lewat tengah malam). Badge tetap jalan."
+        func picker(_ time: String, y: CGFloat) -> NSDatePicker {
+            let p = NSDatePicker(frame: NSRect(x: 70, y: y, width: 110, height: 24))
+            p.datePickerStyle = .textFieldAndStepper
+            p.datePickerElements = .hourMinute
+            let m = minutesOfDay(time) ?? 0
+            p.dateValue = Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: Date()) ?? Date()
+            return p
+        }
+        func label(_ text: String, y: CGFloat) -> NSTextField {
+            let l = NSTextField(labelWithString: text)
+            l.frame = NSRect(x: 0, y: y + 2, width: 64, height: 20)
+            return l
+        }
+        let start = picker(TweakSettings.dndStart, y: 32)
+        let end = picker(TweakSettings.dndEnd, y: 2)
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 190, height: 60))
+        view.subviews = [label("Mulai", y: 32), start, label("Selesai", y: 2), end]
+        alert.accessoryView = view
+        alert.addButton(withTitle: "Simpan")
+        alert.addButton(withTitle: "Batal")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        TweakSettings.dndStart = hhmm(fromMinutes: minutesOfDay(start.dateValue))
+        TweakSettings.dndEnd = hhmm(fromMinutes: minutesOfDay(end.dateValue))
+        TweakSettings.dndEnabled = true
+        current?.tweak("toast", ["msg": "Jadwal senyap \(TweakSettings.dndStart)–\(TweakSettings.dndEnd) aktif"])
+    }
 
     @objc func toggleAlwaysOnTop() {
         guard let w = current?.window else { return }

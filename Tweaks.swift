@@ -40,9 +40,19 @@ enum TweakSettings {
         get { d.bool(forKey: "dndEnabled") }
         set { d.set(newValue, forKey: "dndEnabled") }
     }
-    /// Jam diubah lewat `defaults write dev.zen.wa dndStart 23:30` (tanpa UI).
-    static var dndStart: String { d.string(forKey: "dndStart") ?? "22:00" }
-    static var dndEnd: String { d.string(forKey: "dndEnd") ?? "07:00" }
+    static var dndStart: String {
+        get { d.string(forKey: "dndStart") ?? "22:00" }
+        set { d.set(newValue, forKey: "dndStart") }
+    }
+    static var dndEnd: String {
+        get { d.string(forKey: "dndEnd") ?? "07:00" }
+        set { d.set(newValue, forKey: "dndEnd") }
+    }
+    /// Senyap sementara sampai waktu ini; nil = tidak aktif; Date.distantFuture = sampai dimatikan. Bertahan lewat restart.
+    static var muteUntil: Date? {
+        get { let t = d.double(forKey: "muteUntil"); return t > 0 ? Date(timeIntervalSince1970: t) : nil }
+        set { d.set(newValue?.timeIntervalSince1970 ?? 0, forKey: "muteUntil") }
+    }
 }
 
 // MARK: - Store per akun

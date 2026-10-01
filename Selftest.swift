@@ -57,6 +57,14 @@ func selftest() -> Int32 {
     check(dndActive(minutesNow: 600, start: "10:00", end: "10:00", enabled: true) == false, "dnd start==end")
     check(dndActive(minutesNow: 600, start: "x", end: "07:00", enabled: true) == false, "dnd jam invalid")
 
+    // Senyap sementara
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    check(muteActive(now: t0, until: nil) == false, "muteActive nil")
+    check(muteActive(now: t0, until: t0.addingTimeInterval(-1)) == false, "muteActive lewat")
+    check(muteActive(now: t0, until: t0.addingTimeInterval(60)) == true, "muteActive aktif")
+    check(muteActive(now: t0, until: .distantFuture) == true, "muteActive sampai dimatikan")
+    check(hhmm(fromMinutes: 1320) == "22:00" && hhmm(fromMinutes: 425) == "07:05" && hhmm(fromMinutes: 1440) == "00:00", "hhmm")
+
     // Bookmark dari hasil capture()
     let now = Date(timeIntervalSince1970: 1_700_000_000)
     let full = bookmark(fromCapture: ["id": "true_628@c.us_ABC", "chat": "Budi", "jid": "628@c.us", "text": "halo",
